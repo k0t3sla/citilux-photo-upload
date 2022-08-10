@@ -155,11 +155,13 @@
         data {:art art
               :detail detail-foto
               :photos encoded-fotos}
-        resp (client/get (:url env)
+        resp (try
+               (client/get (:url env)
                          {:basic-auth [(:login env) (:password env)]
                           :body (ch/generate-string data)
                           :content-type :json
-                          :conn-timeout 300000})]
+                          :conn-timeout 300000})
+               (catch Exception e (send-message (str "caught exception: " (.getMessage e)))))]
     (when (not= (:status resp) 200)
       (send-message (str "проблемы при загрузке фотографий - " art)))))
 
@@ -169,13 +171,18 @@
                  :event-types [:create]
                  :bootstrap (fn [path] (println "Starting to watch " path))
                  :callback (fn [_ file]
-                             (copy-file file [(:out-web+1c env) (:out-source env)] (:eror-hot-dir env))
-                             (add-art-to-queue file))
+                             (try
+                               (copy-file file [(:out-web+1c env) (:out-source env)] (:eror-hot-dir env))
+                               (add-art-to-queue file)
+                               (catch Exception e (send-message (str "caught exception: " (.getMessage e))))))
                  :options {:recursive false}}])
   (start-watch [{:path (:hot-dir-wb env)
                  :event-types [:create]
                  :bootstrap (fn [path] (println "Starting to watch " path))
-                 :callback (fn [_ file] (copy-file file [(:out-wb env)] (:eror-hot-dir-wb env)))
+                 :callback (fn [_ file]
+                             (try
+                               (copy-file file [(:out-wb env)] (:eror-hot-dir-wb env))
+                               (catch Exception e (send-message (str "caught exception: " (.getMessage e))))))
                  :options {:recursive false}}])
   (loop []
     ;; вечный цикл в котором проверяется таймаут для отправки сообщения, 
@@ -188,7 +195,9 @@
         (reset! to-upload #{})
         (doseq [art articles]
           (reset! schedule (l/local-now))
-          (upload-fotos art))
+          (try
+            (upload-fotos art)
+            (catch Exception e (send-message (str "caught exception: " (.getMessage e))))))
         
         (notify @new-fotos)
         (reset! new-fotos [])
