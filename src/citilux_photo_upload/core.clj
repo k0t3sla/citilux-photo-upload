@@ -26,12 +26,6 @@
 
 (def articles "Артикула из 1с" (atom []))
 
-(def delimiter
-  "разделитель в зависимости от ос для создания пути"
-  (if (= "Linux" (System/getProperty "os.name"))
-    (str "/")
-    (str "\\")))
-
 (defn parse-line-1c 
   "Парсим csv построчтно выкидывая все кроме артикула" 
   [line] 
@@ -102,7 +96,7 @@
 (defn create-path
   "Созание пути для сохранения, первые 3 ,5 весь артикул"
   [art]
-  (str (subs art 0 3) delimiter (subs art 0 5) delimiter art delimiter))
+  (str (subs art 0 3) "/" (subs art 0 5) "/" art "/"))
 
 (go-loop []
   ;; обновляем артикула 2 раза в день
