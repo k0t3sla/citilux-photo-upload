@@ -9,9 +9,17 @@
             [clojure.core.async :refer [go-loop <! timeout]]
             [clj-http.client :as client]
             [config.core :refer [env]]
-            [telegrambot-lib.core :as tbot])
-  (:import [java.io BufferedReader InputStreamReader])
+            [telegrambot-lib.core :as tbot]) 
+  (:import [java.io FileReader BufferedReader PushbackReader FileInputStream File FileOutputStream InputStreamReader PrintWriter OutputStreamWriter]
+           [java.util Properties]
+           [jcifs.smb SmbFileInputStream SmbFile SmbFileOutputStream]
+           [jcifs Config])
   (:gen-class))
+
+(def prop (Properties.)) 
+(.setProperty prop "jcifs.smb.client.username", "")
+(.setProperty prop "jcifs.smb.client.password", "")
+(Config/setProperties prop)
 
 (def mybot (tbot/create (:tbot env)))
 
@@ -52,9 +60,11 @@
 (defn get-articles-1c
  "Получаем все артикула в виде мапы" 
   []
-  (with-open [rdr (-> (io/input-stream (:articles env))
-                      (InputStreamReader. "windows-1251")
-                      (BufferedReader.))]
+  (with-open [rdr (->
+                   #_(SmbFileInputStream. (:articles env))
+                   (SmbFileInputStream. "Smb://cl-s2/common/exchange/www/items.csv")
+                   (InputStreamReader. "windows-1251")
+                   (BufferedReader.))]
     (reset! articles (->> rdr
                           line-seq
                           (mapv parse-line-1c)))))
@@ -123,7 +133,7 @@
       (do (doseq [arg args]
             (fs/copy+ file (str arg path)))
           (io/delete-file file))
-      (do (fs/copy+ file (str eror name))
+      (do (fs/copy+ file (str eror (fs/base-name file)))
           (io/delete-file file)
           (send-message (str "не верное название файла в папке HOT DIR - " name))))))
 
