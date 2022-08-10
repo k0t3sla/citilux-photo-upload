@@ -118,8 +118,8 @@
       (swap! new-fotos conj file)
       (reset! schedule (l/local-now)))))
 
-(defn check-timout [time]
-  (boolean (t/after? (l/local-now) (t/plus time (t/minutes 1)))))
+(defn check-timeout [time]
+  (boolean (t/after? (l/local-now) (t/plus time (t/minutes (:timeout env))))))
 
 (defn copy-file [file args eror]
   (let [name (fs/name file)
@@ -176,9 +176,9 @@
   (loop []
     ;; вечный цикл в котором проверяется таймаут для отправки сообщения, 
     ;; копирование файлов в нужные дирректории и отсылка фото на сайт
-    (Thread/sleep 100)
+    (Thread/sleep 1000)
     (when (and (not-empty @to-upload)
-               (check-timout @schedule))
+               (check-timeout @schedule))
       ;; todo здесь отправка всего и вся
       (let [articles @to-upload]
         (reset! to-upload #{})
