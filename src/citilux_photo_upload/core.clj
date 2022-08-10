@@ -110,7 +110,10 @@
 
 (go-loop []
   ;; обновляем артикула 2 раза в день
-  (get-articles-1c)
+  (try (get-articles-1c)
+       (catch Exception e 
+         (println (send-message (str "caught exception: " (.getMessage e))))
+         (send-message (str "caught exception: " (.getMessage e)))))
   (<! (timeout 43200000))
   (recur))
 
