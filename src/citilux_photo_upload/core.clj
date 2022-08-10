@@ -16,7 +16,8 @@
 (def mybot (tbot/create (:tbot env)))
 
 ;; atoms
-(def to-upload "очередь товар для загрузки" (atom #{}))
+(def to-upload "очередь товаров для загрузки" (atom #{}))
+(def new-fotos "Список добавленных фото" (atom []))
 
 (def schedule
   "Атом с временем последнего добавления товара
@@ -77,12 +78,12 @@
   [file]
   (str/trim (first (str/split (fs/name file) #"_(?!.*_)"))))
 
-#_(defn filter-files [files ext]
+(defn filter-files [files ext]
   (filter (fn [x]
             (= (fs/extension x) ext))
           files))
 
-#_(defn notify
+(defn notify
   "Перечисляем фото или видео с их колличеством"
   [files]
   (let [jpg (vec (filter-files files ".jpg"))
@@ -90,11 +91,11 @@
         freq-jpg (into [] (frequencies (map get-article jpg)))
         freq-mp4 (into [] (frequencies (map get-article mp4)))
         jpg-out (for [v freq-jpg]
-                  (str (str/join " - " v) " шт"))
+                  (str (str/join " - " v) " шт\n"))
         mp4-out (for [v freq-mp4]
-                  (str (str/join " - " v) " шт"))
-        msg (str (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - " (apply str jpg-out))) "\n"
-                 (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - " (apply str mp4-out))))]
+                  (str (str/join " - " v) " шт\n"))
+        msg (str (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out))) "\n"
+                 (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - \n" (apply str mp4-out))))]
     (println msg)
     (send-message msg)))
 
@@ -109,9 +110,13 @@
   (<! (timeout 43200000))
   (recur))
 
-(defn add-art-to-queue [path]
-  (swap! to-upload conj (get-article (fs/name path)))
-  (reset! schedule (l/local-now)))
+(defn add-art-to-queue [file]
+  (let [name (fs/name file)
+        art (get-article name)]
+    (when (true? (chck-art art))
+      (swap! to-upload conj art)
+      (swap! new-fotos conj file)
+      (reset! schedule (l/local-now)))))
 
 (defn check-timout [time]
   (boolean (t/after? (l/local-now) (t/plus time (t/minutes 1)))))
@@ -180,7 +185,8 @@
         (doseq [art articles]
           (reset! schedule (l/local-now))
           (upload-fotos art))
-        (send-message (str "обновлены товары - " articles))
-
+        
+        (notify @new-fotos)
+        (reset! new-fotos [])
         (reset! schedule (l/local-now))))
     (recur)))
