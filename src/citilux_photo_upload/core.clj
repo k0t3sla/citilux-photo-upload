@@ -61,8 +61,7 @@
  "Получаем все артикула в виде мапы" 
   []
   (with-open [rdr (->
-                   #_(SmbFileInputStream. (:articles env))
-                   (SmbFileInputStream. "Smb://cl-s2/common/exchange/www/items.csv")
+                   (SmbFileInputStream. (:articles env))
                    (InputStreamReader. "windows-1251")
                    (BufferedReader.))]
     (reset! articles (->> rdr
