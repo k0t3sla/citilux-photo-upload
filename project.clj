@@ -6,7 +6,6 @@
   :dependencies [[org.clojure/clojure "1.10.3"]
                  [clj-http "3.12.3"]
                  [clj-commons/fs "1.6.307"]
-                 [clojure-watch "0.1.14"]
                  [org.clojure/core.async "1.5.648"]
                  [yogthos/config "1.2.0"]
                  [telegrambot-lib "1.4.0"]
