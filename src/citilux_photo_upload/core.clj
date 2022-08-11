@@ -111,8 +111,8 @@
   ;; обновляем артикула 2 раза в день
   (try (get-articles-1c)
        (catch Exception e 
-         (println (send-message (str "caught exception: " (.getMessage e))))
-         (send-message (str "caught exception: " (.getMessage e)))))
+         (println (send-message (str "caught exception: Articles file:" (.getMessage e))))
+         (send-message (str "caught exception: Articles file:" (.getMessage e)))))
   (<! (timeout 43200000))
   (recur))
 
@@ -176,7 +176,7 @@
                              (try
                                (copy-file file [(:out-web+1c env) (:out-source env)] (:eror-hot-dir env))
                                (add-art-to-queue file)
-                               (catch Exception e (send-message (str "caught exception: " (.getMessage e))))))
+                               (catch Exception e (send-message (str "caught exception: HOT DIR:" (.getMessage e))))))
                  :options {:recursive false}}])
   (start-watch [{:path (:hot-dir-wb env)
                  :event-types [:create]
@@ -184,7 +184,7 @@
                  :callback (fn [_ file]
                              (try
                                (copy-file file [(:out-wb env)] (:eror-hot-dir-wb env))
-                               (catch Exception e (send-message (str "caught exception: " (.getMessage e))))))
+                               (catch Exception e (send-message (str "caught exception: HOT DIR-WB:" (.getMessage e))))))
                  :options {:recursive false}}])
   (loop []
     ;; вечный цикл в котором проверяется таймаут для отправки сообщения, 
