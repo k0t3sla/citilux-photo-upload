@@ -1,0 +1,13 @@
+{:tbot "1737425555:AAHeqNRCziGPoR-DbkL1CqQWOCXITU5e9jw"
+ :chat_id -590645280
+ :login "foo"
+ :password "bar"
+ :url "http://192.168.100.96/test.php"
+ :eror-hot-dir "/home/li/Загрузки/test-hodir/hotdir_eror/" 
+ :eror-hot-dir-wb "/home/li/Загрузки/test-hodir/hotdir-wb_eror/"
+ :articles "/home/li/prog/clojure/bx24-fotos-report-new/resources/items.csv"
+ :hot-dir "/home/li/Загрузки/test-hodir/SOURCE/HOT_DIR"
+ :hot-dir-wb "/home/li/Загрузки/test-hodir/SOURCE/HOT_DIR_WB"
+ :out-web+1c "/home/li/Загрузки/test-hodir/WEB+1C/"
+ :out-source "/home/li/Загрузки/test-hodir/SOURCE/"
+ :out-wb "/home/li/Загрузки/test-hodir/WEB+1C_wildberries/"}
