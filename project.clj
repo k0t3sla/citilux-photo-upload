@@ -9,8 +9,7 @@
                  [org.clojure/core.async "1.5.648"]
                  [yogthos/config "1.2.0"]
                  [telegrambot-lib "1.4.0"]
-                 [cheshire "5.10.1"]
-                 [clj-time "0.15.2"]]
+                 [cheshire "5.10.1"]]
   :main ^:skip-aot citilux-photo-upload.core 
   :jvm-opts ["-Dconfig=config.edn"]   
   :target-path "target/%s"
