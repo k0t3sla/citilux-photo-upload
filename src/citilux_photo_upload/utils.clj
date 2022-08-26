@@ -11,7 +11,6 @@
 (defn send-message [message]
   (tbot/call mybot "sendMessage" {:chat_id (:chat_id env) :text message}))
 
-
 (def delimiter
   "разделитель в зависимости от ос для создания пути"
   (if (= "Windows" (System/getProperty "os.name"))
@@ -51,13 +50,23 @@
   [files]
   (let [jpg (vec (filter-files files ".jpg"))
         mp4 (vec (filter-files files ".mp4"))
+        psd (vec (filter-files files ".psd"))
+        png (vec (filter-files files ".png"))
         freq-jpg (into [] (frequencies (map get-article jpg)))
         freq-mp4 (into [] (frequencies (map get-article mp4)))
+        freq-psd (into [] (frequencies (map get-article psd)))
+        freq-png (into [] (frequencies (map get-article png)))
         jpg-out (for [v freq-jpg]
                   (str (str/join " - " v) " шт\n"))
         mp4-out (for [v freq-mp4]
                   (str (str/join " - " v) " шт\n"))
+        psd-out (for [v freq-psd]
+                  (str (str/join " - " v) " шт\n"))
+        png-out (for [v freq-png]
+                  (str (str/join " - " v) " шт\n"))
         msg (str (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out))) "\n"
-                 (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - \n" (apply str mp4-out))))]
+                 (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - \n" (apply str mp4-out)))
+                 (when (not-empty psd-out) (str "Добавлены psd фото по следующим позициям - \n" (apply str mp4-out)))
+                 (when (not-empty png-out) (str "Добавлены новые png по следующим позициям - \n" (apply str mp4-out))))]
     (println msg)
     (send-message msg)))
