@@ -29,8 +29,9 @@
                     line-seq
                     (map parse-line-1c)))))
 
-(defn compress-video [files]
+(defn compress-video
   "сжимаем видео для вайлдбериз"
+  [files]
   (doseq [file files]
     (fs/mkdirs (str (:out-wb env) (create-path (get-article file))))
     (sh/sh "ffmpeg" "-i" file "-fs" "47M" (str (:out-wb env) (create-path (get-article file)) (.getName (io/file file))))))
