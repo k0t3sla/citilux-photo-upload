@@ -25,9 +25,9 @@
   (with-open [rdr (-> (io/input-stream (:articles env))
                       (InputStreamReader. "windows-1251")
                       (BufferedReader.))]
-   (mapv :art (->> rdr
-         line-seq
-         (map parse-line-1c)))))
+    (mapv :art (->> rdr
+                    line-seq
+                    (map parse-line-1c)))))
 
 (defn compress-video [files]
   "сжимаем видео для вайлдбериз"
@@ -64,28 +64,30 @@
           to-upload (set (filter-files true (map get-article jpg-hot-dir) all-articles))
           hot-dir (filter-files true (concat jpg-hot-dir videos other-hot-dir) all-articles)
           hot-dir-wb (filter-files true (list-files (:hot-dir-wb env) "jpg,jpeg") all-articles)]
-      
+
       (compress-video videos)
 
       (when (not-empty hot-dir-wb)
         (doseq [file hot-dir-wb]
           (copy-file file [(:out-wb env)])))
-      
+
       (when (not-empty hot-dir)
         (doseq [file hot-dir]
           (copy-file file [(:out-web+1c env) (:out-source env)])))
 
       (when (not-empty err-files)
-            (send-message (str "ошибки в названиях фото" (mapv fs/base-name err-files))))
+        (send-message (str "ошибки в названиях фото" (mapv fs/base-name err-files))))
 
       (if (not-empty to-upload)
         (do (doseq [art to-upload]
-              (try 
+              (try
                 (upload-fotos art)
                 (println (str "upload " art " to server"))
                 (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
             (notify hot-dir))
-        (send-message "Новые фотографии отсутствуют")))
+        (do (send-message "Новые фотографии отсутствуют")
+            (when not-empty videos
+                  (notify hot-dir)))))
 
     (catch Exception e
       (send-message (str "caught exception: " (.getMessage e)))
