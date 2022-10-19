@@ -29,20 +29,33 @@
                     line-seq
                     (map parse-line-1c)))))
 
+(defn move-file [file args]
+  (let [name (fs/base-name file)
+        art (get-article name)
+        path (str (create-path art) name)]
+    (doseq [arg args]
+      (fs/copy+ file (str arg path)))
+    (io/delete-file file)))
+
+(defn copy-file [file args]
+  (let [name (fs/base-name file)
+        art (get-article name)
+        path (str (create-path art) name)]
+    (doseq [arg args]
+      (fs/copy+ file (str arg path)))))
+
 (defn compress-video
   "сжимаем видео для вайлдбериз"
   [files]
   (doseq [file files]
     (fs/mkdirs (str (:out-wb env) (create-path (get-article file))))
-    (sh/sh "ffmpeg" "-i" file "-fs" "47M" (str (:out-wb env) (create-path (get-article file)) (.getName (io/file file))))))
-
-(defn copy-file [file args]
-  (let [name (fs/name file)
-        art (get-article name)
-        path (str (create-path (get-article art)) (fs/base-name file))]
-    (doseq [arg args]
-      (fs/copy+ file (str arg path)))
-    (io/delete-file file)))
+    (let [size (fs/size file)]
+      (cond
+        (> 20971520 size) (copy-file file [(:out-wb env)])
+        (> 52428800 size) (do (sh/sh "ffmpeg" "-i" file "-fs" "18M" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
+                              (copy-file file [(:out-wb env)]))
+        :else (do (sh/sh "ffmpeg" "-i" file "-fs" "18M" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
+                  (sh/sh "ffmpeg" "-i" file "-fs" "47M" (str (:out-wb env) (create-path (get-article file)) (fs/base-name file))))))))
 
 (defn filter-files [err? list all-articles]
   (let [out (for [file list]
@@ -66,15 +79,15 @@
           hot-dir (filter-files true (concat jpg-hot-dir videos other-hot-dir) all-articles)
           hot-dir-wb (filter-files true (list-files (:hot-dir-wb env) "jpg,jpeg") all-articles)]
 
-      (compress-video videos)
+      (compress-video videos) 
 
       (when (not-empty hot-dir-wb)
         (doseq [file hot-dir-wb]
-          (copy-file file [(:out-wb env)])))
+          (move-file file [(:out-wb env)])))
 
       (when (not-empty hot-dir)
         (doseq [file hot-dir]
-          (copy-file file [(:out-web+1c env) (:out-source env)])))
+          (move-file file [(:out-web+1c env) (:out-source env)])))
 
       (when (not-empty err-files)
         (send-message (str "ошибки в названиях фото" (mapv fs/base-name err-files))))
