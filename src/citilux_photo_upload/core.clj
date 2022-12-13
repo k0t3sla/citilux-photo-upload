@@ -54,8 +54,8 @@
         (> 20971520 size) (copy-file file [(:out-wb env)])
         (> 52428800 size) (do (sh/sh "ffmpeg" "-i" file "-fs" "18M" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
                               (copy-file file [(:out-wb env)]))
-        :else (do (sh/sh "ffmpeg" "-i" file "-fs" "18M" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
-                  (sh/sh "ffmpeg" "-i" file "-fs" "47M" (str (:out-wb env) (create-path (get-article file)) (fs/base-name file))))))))
+        :else (do (sh/sh "ffmpeg" "-i" file "-threads" "1" "-fs" "18M" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
+                  (sh/sh "ffmpeg" "-i" file "-threads" "1" "-fs" "47M" (str (:out-wb env) (create-path (get-article file)) (fs/base-name file))))))))
 
 (defn filter-files [err? list all-articles]
   (let [out (for [file list]
@@ -100,7 +100,7 @@
                 (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
             (notify hot-dir))
         (do (send-message "Новые фотографии отсутствуют")
-            (when not-empty videos
+            (when (not-empty videos)
                   (notify hot-dir)))))
 
     (catch Exception e
