@@ -52,9 +52,9 @@
     (let [size (fs/size file)]
       (cond
         (> 20971520 size) (copy-file file [(:out-wb env)])
-        (> 52428800 size) (do (sh/sh "ffmpeg" "-i" file "-threads" "1" "-fs" "18M" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
+        (> 52428800 size) (do (sh/sh "ffmpeg" "-i" file "-threads" "1" "-fs" "18M" "-filter:v" "fps=30" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
                               (copy-file file [(:out-wb env)]))
-        :else (do (sh/sh "ffmpeg" "-i" file "-threads" "1" "-fs" "18M" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
+        :else (do (sh/sh "ffmpeg" "-i" file "-threads" "1" "-fs" "18M" "-filter:v" "fps=30" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
                   (sh/sh "ffmpeg" "-i" file "-threads" "1" "-fs" "47M" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (fs/base-name file))))))))
 
 (defn filter-files [err? list all-articles]
