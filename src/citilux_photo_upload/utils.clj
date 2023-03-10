@@ -1,19 +1,21 @@
 (ns citilux-photo-upload.utils
   (:require [clojure.java.io :as io]
-            [me.raynes.fs :as fs]
-            [telegrambot-lib.core :as tbot]
+            [babashka.fs :as fs]
+            [babashka.http-client :as client]
+            [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
             [clojure.string :as str])
   (:gen-class))
 
-(def mybot (tbot/create (:tbot env)))
-
-(defn send-message [message]
-  (tbot/call mybot "sendMessage" {:chat_id (:chat_id env) :text message}))
+(defn send-message [text]
+  (client/post (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
+               {:body (generate-string {:chat_id (:chat_id env) :text text})
+                :content-type :json
+                :accept :json}))
 
 (def delimiter
   "разделитель в зависимости от ос для создания пути"
-  (if (= "Windows" (System/getProperty "os.name"))
+  (if (fs/windows?)
     (str "\\")
     (str "/")))
 
@@ -22,23 +24,10 @@
   [art]
   (str (subs art 0 3) delimiter (subs art 0 5) delimiter art delimiter))
 
-(defn list-files 
-  "Список файлов с нужным расширением" 
-  [path ext] 
-  (let [grammar-matcher (.getPathMatcher
-                         (java.nio.file.FileSystems/getDefault)
-                         (str "glob:*.{" ext "}"))]
-    (->> path
-         io/file
-         file-seq
-         (filter #(.isFile ^java.io.File %))
-         (filter #(.matches grammar-matcher (.getFileName ^sun.nio.fs.UnixPath (.toPath ^java.io.File %))))
-         (mapv #(.getAbsolutePath ^java.io.File %)))))
-
 (defn get-article
   "Тримаем, и получаем артикула без нижних подчеркиваний"
   [file]
-  (str/trim (first (str/split (fs/name file) #"_(?!.*_)"))))
+  (str/trim (first (str/split (fs/file-name file) #"_(?!.*_)"))))
 
 (defn filter-files [files ext]
   (filter (fn [x]

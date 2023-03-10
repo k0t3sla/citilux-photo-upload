@@ -1,16 +1,18 @@
 (ns citilux-photo-upload.core
   (:require [clojure.java.io :as io]
-            [me.raynes.fs :as fs]
+            [babashka.fs :as fs]
             [clojure.java.shell :as sh]
             [config.core :refer [env]]
+            #_[de.digitalcollections.turbojpeg :as compress]
             [citilux-photo-upload.upload :refer [upload-fotos]]
             [citilux-photo-upload.utils :refer [notify
                                                 get-article
                                                 create-path
-                                                list-files
                                                 send-message]])
-  (:import [java.io BufferedReader InputStreamReader])
+  (:import [java.io BufferedReader InputStreamReader]) 
   (:gen-class))
+
+(sh/sh "node_modules/.bin/squoosh-cli" "--help")
 
 (defn parse-line-1c
   "Парсим csv построчтно выкидывая все кроме артикула"
@@ -30,25 +32,25 @@
                     (map parse-line-1c)))))
 
 (defn move-file [file args]
-  (let [name (fs/base-name file)
+  (let [name (fs/file-name file)
         art (get-article name)
         path (str (create-path art) name)]
     (doseq [arg args]
-      (fs/copy+ file (str arg path)))
+      (fs/copy file (str arg path)))
     (io/delete-file file)))
 
 (defn copy-file [file args]
-  (let [name (fs/base-name file)
+  (let [name (fs/file-name file)
         art (get-article name)
         path (str (create-path art) name)]
     (doseq [arg args]
-      (fs/copy+ file (str arg path)))))
+      (fs/copy file (str arg path)))))
 
 (defn compress-video
   "сжимаем видео для вайлдбериз"
   [files]
   (doseq [file files]
-    (fs/mkdirs (str (:out-wb env) (create-path (get-article file))))
+    (fs/create-dirs (str (:out-wb env) (create-path (get-article file))))
     (let [size (fs/size file)]
       (cond
         (> 20971520 size) (copy-file file [(:out-wb env)])
@@ -66,18 +68,43 @@
                   file)))]
     (remove nil? out)))
 
+(comment
+  (let [orig    (fs/size "/home/li/Изображения/small.jpg")
+        zipped  (fs/size "/home/li/Изображения/out/out/small.jpg")
+        ratio (float (/ zipped orig))]
+    (println ratio)
+    (if (> ratio 99)
+      (println 111)
+      (println 222)))
+
+  (sh/sh "squoosh-cli" "--mozjpeg" "'{quality:90}'" "-d" "../ТЕМР/mozjpeg" :in (fs/file "CL401813_01.jpg"))
+
+  ()
+  (sh/sh "echo" "1")
+
+  (let [f (future (sh/sh "squoosh-cli" "--mozjpeg" "'{quality:90}'" "-d" "../ТЕМР" "CL401813_01.jpg"))]
+    (clojure.pprint/pprint @f))
+  
+
+  
+  (sh/sh)
+  )
+
+
+
+
 (defn -main
   []
   (try
     (let [all-articles (get-articles-1c)
-          err-files (filter-files false (concat (list-files (:hot-dir env) "mp4,png,psd,jpg,jpeg")
-                                                (list-files (:hot-dir-wb env) "jpg,jpeg")) all-articles)
-          videos (filter-files true (list-files (:hot-dir env) "mp4") all-articles)
-          other-hot-dir  (list-files (:hot-dir env) "png,psd")
-          jpg-hot-dir (list-files (:hot-dir env) "jpg,jpeg")
+          err-files (filter-files false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
+                                                (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}"))) all-articles)
+          videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
+          other-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.png,psd}"))
+          jpg-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg}"))
           to-upload (set (filter-files true (map get-article jpg-hot-dir) all-articles))
           hot-dir (filter-files true (concat jpg-hot-dir videos other-hot-dir) all-articles)
-          hot-dir-wb (filter-files true (list-files (:hot-dir-wb env) "jpg,jpeg") all-articles)]
+          hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}")) all-articles)]
 
       (compress-video videos) 
 
@@ -90,7 +117,7 @@
           (move-file file [(:out-web+1c env) (:out-source env)])))
 
       (when (not-empty err-files)
-        (send-message (str "ошибки в названиях фото" (mapv fs/base-name err-files))))
+        (send-message (str "ошибки в названиях фото" (mapv fs/file-name err-files))))
 
       (if (not-empty to-upload)
         (do (doseq [art to-upload]

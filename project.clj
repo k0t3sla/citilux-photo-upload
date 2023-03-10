@@ -3,13 +3,14 @@
   :url "http://example.com/FIXME"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :dependencies [[org.clojure/clojure "1.10.3"]
-                 [clj-http "3.12.3"]
-                 [clj-commons/fs "1.6.307"]
-                 [org.clojure/core.async "1.5.648"]
-                 [yogthos/config "1.2.0"]
-                 [telegrambot-lib "1.4.0"]
-                 [cheshire "5.10.1"]]
+  :dependencies [[org.clojure/clojure "1.11.1"]
+                 [org.babashka/http-client "0.1.4"]
+                 [cheshire "5.11.0"]
+                 [babashka/fs "0.2.16"]
+                 [com.dorkbox/MinLog-SLF4J "2.0"]
+                 [commons-io/commons-io "2.11.0"]
+                 [de.digitalcollections.imageio/imageio-turbojpeg "0.6.2"]
+                 [yogthos/config "1.2.0"]]
   :main ^:skip-aot citilux-photo-upload.core 
   :jvm-opts ["-Dconfig=config.edn"]   
   :target-path "target/%s"
