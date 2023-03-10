@@ -3,16 +3,13 @@
             [babashka.fs :as fs]
             [clojure.java.shell :as sh]
             [config.core :refer [env]]
-            #_[de.digitalcollections.turbojpeg :as compress]
             [citilux-photo-upload.upload :refer [upload-fotos]]
             [citilux-photo-upload.utils :refer [notify
                                                 get-article
                                                 create-path
                                                 send-message]])
-  (:import [java.io BufferedReader InputStreamReader]) 
+  (:import [java.io BufferedReader InputStreamReader])
   (:gen-class))
-
-(sh/sh "node_modules/.bin/squoosh-cli" "--help")
 
 (defn parse-line-1c
   "Парсим csv построчтно выкидывая все кроме артикула"
@@ -31,20 +28,36 @@
                     line-seq
                     (map parse-line-1c)))))
 
-(defn move-file [file args]
-  (let [name (fs/file-name file)
+(defn move-and-compress [file args]
+  (let [_ (sh/sh ".\\node_modules\\.bin\\squoosh-cli.cmd" "--mozjpeg" (:quality env) "-d" "tmp" file)
+        orig-size (fs/size file)
+        zipped (fs/size (str "tmp\\" (fs/file-name file)))
+        ratio (float (/ zipped orig-size))
+        name (fs/file-name file)
         art (get-article name)
         path (str (create-path art) name)]
-    (doseq [arg args]
-      (fs/copy file (str arg path)))
-    (io/delete-file file)))
+    (if (> ratio 99)
+      (doseq [arg args]
+        (fs/create-dirs (str arg (create-path art)))
+        (println "comprassing and moving")
+        (println (str arg path))
+        (fs/copy (str "tmp" (fs/file-name file)) (str arg path) {:keys [:replace-existing :copy-attributes :nofollow-links]}))
+      (doseq [arg args]
+        (fs/create-dirs (str arg (create-path art)))
+        (println "just moving")
+        (println (str arg path))
+        (fs/copy file (str arg path) {:keys [:replace-existing :copy-attributes :nofollow-links]})))
+    (fs/delete file)
+    (when (fs/exists? (str "tmp\\" (fs/file-name file)))
+      (fs/delete (str "tmp\\" (fs/file-name file))))))
 
 (defn copy-file [file args]
   (let [name (fs/file-name file)
         art (get-article name)
         path (str (create-path art) name)]
     (doseq [arg args]
-      (fs/copy file (str arg path)))))
+      (fs/create-dirs (str arg (create-path art)))
+      (fs/copy file (str arg path) {:keys [:replace-existing :copy-attributes :nofollow-links]}))))
 
 (defn compress-video
   "сжимаем видео для вайлдбериз"
@@ -54,10 +67,10 @@
     (let [size (fs/size file)]
       (cond
         (> 20971520 size) (copy-file file [(:out-wb env)])
-        (> 52428800 size) (do (sh/sh "ffmpeg" "-y" "-i" file "-threads" "1" "-fs" "18M" "-r" "30" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
+        (> 52428800 size) (do (sh/sh "ffmpeg" "-y" "-i" file "-threads" "1" "-fs" "18M" "-r" "30" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (first (fs/split-ext (fs/file-name file))) "_20.mp4"))
                               (copy-file file [(:out-wb env)]))
-        :else (do (sh/sh "ffmpeg" "-y" "-i" file "-threads" "1" "-fs" "18M" "-r" "30" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (fs/name file) "_20.mp4"))
-                  (sh/sh "ffmpeg" "-y" "-i" file "-threads" "1" "-fs" "47M" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (fs/base-name file))))))))
+        :else (do (sh/sh "ffmpeg" "-y" "-i" file "-threads" "1" "-fs" "18M" "-r" "30" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (first (fs/split-ext (fs/file-name file))) "_20.mp4"))
+                  (sh/sh "ffmpeg" "-y" "-i" file "-threads" "1" "-fs" "47M" "-vf" "scale=1080:1920" (str (:out-wb env) (create-path (get-article file)) (first (fs/split-ext (fs/file-name file))))))))))
 
 (defn filter-files [err? list all-articles]
   (let [out (for [file list]
@@ -67,31 +80,6 @@
                 (when-not (some #{(get-article file)} all-articles)
                   file)))]
     (remove nil? out)))
-
-(comment
-  (let [orig    (fs/size "/home/li/Изображения/small.jpg")
-        zipped  (fs/size "/home/li/Изображения/out/out/small.jpg")
-        ratio (float (/ zipped orig))]
-    (println ratio)
-    (if (> ratio 99)
-      (println 111)
-      (println 222)))
-
-  (sh/sh "squoosh-cli" "--mozjpeg" "'{quality:90}'" "-d" "../ТЕМР/mozjpeg" :in (fs/file "CL401813_01.jpg"))
-
-  ()
-  (sh/sh "echo" "1")
-
-  (let [f (future (sh/sh "squoosh-cli" "--mozjpeg" "'{quality:90}'" "-d" "../ТЕМР" "CL401813_01.jpg"))]
-    (clojure.pprint/pprint @f))
-  
-
-  
-  (sh/sh)
-  )
-
-
-
 
 (defn -main
   []
@@ -106,30 +94,66 @@
           hot-dir (filter-files true (concat jpg-hot-dir videos other-hot-dir) all-articles)
           hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}")) all-articles)]
 
-      (compress-video videos) 
+      (compress-video videos)
 
       (when (not-empty hot-dir-wb)
         (doseq [file hot-dir-wb]
-          (move-file file [(:out-wb env)])))
+          (move-and-compress file [(:out-wb env)])))
 
       (when (not-empty hot-dir)
         (doseq [file hot-dir]
-          (move-file file [(:out-web+1c env) (:out-source env)])))
+          (move-and-compress file [(:out-web+1c env) (:out-source env)])))
 
       (when (not-empty err-files)
         (send-message (str "ошибки в названиях фото" (mapv fs/file-name err-files))))
 
-      (if (not-empty to-upload)
-        (do (doseq [art to-upload]
-              (try
-                (upload-fotos art)
-                (println (str "upload " art " to server"))
-                (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
-            (notify hot-dir))
-        (do (send-message "Новые фотографии отсутствуют")
-            (when (not-empty videos)
-                  (notify hot-dir)))))
+      #_(if (not-empty to-upload)
+          (do (doseq [art to-upload]
+                (try
+                  (upload-fotos art)
+                  (println (str "upload " art " to server"))
+                  (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
+              (notify hot-dir))
+          (do (send-message "Новые фотографии отсутствуют")
+              (when (not-empty videos)
+                (notify hot-dir)))))
 
     (catch Exception e
       (send-message (str "caught exception: " (.getMessage e)))
       (println (str "caught exception: " (.getMessage e))))))
+
+(comment
+  (let [all-articles (get-articles-1c)
+        err-files (filter-files false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
+                                              (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}"))) all-articles)
+        videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
+        other-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.png,psd}"))
+        jpg-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg}"))
+        to-upload (set (filter-files true (map get-article jpg-hot-dir) all-articles))
+        hot-dir (filter-files true (concat jpg-hot-dir videos other-hot-dir) all-articles)
+        hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}")) all-articles)]
+    
+    (println "Dw" (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg}")))
+    (println "err-files" err-files)
+    (println "videos" videos)
+    (println "other-hot-dir" other-hot-dir)
+    (println "jpg-hot-dir" jpg-hot-dir)
+    (println "other-hot-dir" to-upload)
+    (println "hot-dir" hot-dir)
+    (println "hot-dir-wb" hot-dir-wb)
+    
+    (when (not-empty hot-dir)
+      (doseq [file hot-dir]
+        (move-and-compress file [(:out-web+1c env) (:out-source env)]))))
+
+
+  
+  )
+
+
+(comment
+  (fs/copy "C:\\Games\\DATABANK\\SOURCE\\HOT DIR\\CL101181_1.jpg"
+           "C:\\Games\\DATABANK\\WEB+1C\\CL1\\CL101\\CL101181\\CL101181_1.jpg"
+           {:keys [:replace-existing :copy-attributes :nofollow-links]})
+
+  )

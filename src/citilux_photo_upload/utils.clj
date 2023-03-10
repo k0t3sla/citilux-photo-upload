@@ -1,7 +1,7 @@
 (ns citilux-photo-upload.utils
   (:require [clojure.java.io :as io]
             [babashka.fs :as fs]
-            [babashka.http-client :as client]
+            [clj-http.lite.client :as client]
             [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
             [clojure.string :as str])

@@ -1,5 +1,5 @@
 (ns citilux-photo-upload.upload
-  (:require [babashka.http-client :as client]
+  (:require [clj-http.lite.client :as client]
             [clojure.java.io :as io]
             [babashka.fs :as fs]
             [cheshire.core :as ch]
@@ -12,7 +12,6 @@
    (java.util.Base64/getEncoder)
    (org.apache.commons.io.FileUtils/readFileToByteArray
     (io/file path))))
-
 
 (defn upload-fotos
   "Грузим фото на сервер в base64"
