@@ -37,10 +37,10 @@
 (defn notify
   "Перечисляем фото или видео с их колличеством"
   [files]
-  (let [jpg (vec (filter-files files ".jpg"))
-        mp4 (vec (filter-files files ".mp4"))
-        psd (vec (filter-files files ".psd"))
-        png (vec (filter-files files ".png"))
+  (let [jpg (vec (filter-files files "jpg"))
+        mp4 (vec (filter-files files "mp4"))
+        psd (vec (filter-files files "psd"))
+        png (vec (filter-files files "png"))
         freq-jpg (into [] (frequencies (map get-article jpg)))
         freq-mp4 (into [] (frequencies (map get-article mp4)))
         freq-psd (into [] (frequencies (map get-article psd)))

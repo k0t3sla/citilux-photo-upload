@@ -36,17 +36,18 @@
         name (fs/file-name file)
         art (get-article name)
         path (str (create-path art) name)]
-    (if (> ratio 99)
+    (println ratio)
+    (if (< ratio 0.9)
       (doseq [arg args]
         (fs/create-dirs (str arg (create-path art)))
         (println "comprassing and moving")
         (println (str arg path))
-        (fs/copy (str "tmp" (fs/file-name file)) (str arg path) {:keys [:replace-existing :copy-attributes :nofollow-links]}))
+        (fs/copy (str "tmp\\" (fs/file-name file)) (str arg path) {:replace-existing true}))
       (doseq [arg args]
         (fs/create-dirs (str arg (create-path art)))
         (println "just moving")
         (println (str arg path))
-        (fs/copy file (str arg path) {:keys [:replace-existing :copy-attributes :nofollow-links]})))
+        (fs/copy file (str arg path) {:replace-existing true})))
     (fs/delete file)
     (when (fs/exists? (str "tmp\\" (fs/file-name file)))
       (fs/delete (str "tmp\\" (fs/file-name file))))))
@@ -57,7 +58,7 @@
         path (str (create-path art) name)]
     (doseq [arg args]
       (fs/create-dirs (str arg (create-path art)))
-      (fs/copy file (str arg path) {:keys [:replace-existing :copy-attributes :nofollow-links]}))))
+      (fs/copy file (str arg path) {:replace-existing true}))))
 
 (defn compress-video
   "сжимаем видео для вайлдбериз"
@@ -106,9 +107,10 @@
 
       (when (not-empty err-files)
         (send-message (str "ошибки в названиях фото" (mapv fs/file-name err-files))))
-
-      #_(if (not-empty to-upload)
-          (do (doseq [art to-upload]
+      
+      (if (not-empty to-upload)
+          (do 
+            (doseq [art to-upload]
                 (try
                   (upload-fotos art)
                   (println (str "upload " art " to server"))
@@ -121,39 +123,3 @@
     (catch Exception e
       (send-message (str "caught exception: " (.getMessage e)))
       (println (str "caught exception: " (.getMessage e))))))
-
-(comment
-  (let [all-articles (get-articles-1c)
-        err-files (filter-files false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
-                                              (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}"))) all-articles)
-        videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
-        other-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.png,psd}"))
-        jpg-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg}"))
-        to-upload (set (filter-files true (map get-article jpg-hot-dir) all-articles))
-        hot-dir (filter-files true (concat jpg-hot-dir videos other-hot-dir) all-articles)
-        hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}")) all-articles)]
-    
-    (println "Dw" (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg}")))
-    (println "err-files" err-files)
-    (println "videos" videos)
-    (println "other-hot-dir" other-hot-dir)
-    (println "jpg-hot-dir" jpg-hot-dir)
-    (println "other-hot-dir" to-upload)
-    (println "hot-dir" hot-dir)
-    (println "hot-dir-wb" hot-dir-wb)
-    
-    (when (not-empty hot-dir)
-      (doseq [file hot-dir]
-        (move-and-compress file [(:out-web+1c env) (:out-source env)]))))
-
-
-  
-  )
-
-
-(comment
-  (fs/copy "C:\\Games\\DATABANK\\SOURCE\\HOT DIR\\CL101181_1.jpg"
-           "C:\\Games\\DATABANK\\WEB+1C\\CL1\\CL101\\CL101181\\CL101181_1.jpg"
-           {:keys [:replace-existing :copy-attributes :nofollow-links]})
-
-  )
