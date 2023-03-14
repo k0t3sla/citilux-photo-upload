@@ -60,6 +60,15 @@
       (fs/create-dirs (str arg (create-path art)))
       (fs/copy file (str arg path) {:replace-existing true}))))
 
+(defn move-file [file args]
+  (let [name (fs/file-name file)
+        art (get-article name)
+        path (str (create-path art) name)]
+    (doseq [arg args]
+      (fs/create-dirs (str arg (create-path art)))
+      (fs/copy file (str arg path) {:replace-existing true}))
+    (io/delete-file file)))
+
 (defn compress-video
   "сжимаем видео для вайлдбериз"
   [files]
@@ -89,10 +98,10 @@
           err-files (filter-files false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
                                                 (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}"))) all-articles)
           videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
-          other-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.png,psd}"))
           jpg-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg}"))
           to-upload (set (filter-files true (map get-article jpg-hot-dir) all-articles))
-          hot-dir (filter-files true (concat jpg-hot-dir videos other-hot-dir) all-articles)
+          hot-dir-other (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.png,psd}")) all-articles)
+          hot-dir (filter-files true jpg-hot-dir all-articles)
           hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}")) all-articles)]
 
       (compress-video videos)
@@ -105,20 +114,24 @@
         (doseq [file hot-dir]
           (move-and-compress file [(:out-web+1c env) (:out-source env)])))
 
+      (when (not-empty hot-dir-other)
+        (doseq [file hot-dir-other]
+          (move-file file [(:out-web+1c env) (:out-source env)])))
+
       (when (not-empty err-files)
         (send-message (str "ошибки в названиях фото" (mapv fs/file-name err-files))))
-      
+
       (if (not-empty to-upload)
-          (do 
-            (doseq [art to-upload]
-                (try
-                  (upload-fotos art)
-                  (println (str "upload " art " to server"))
-                  (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
-              (notify hot-dir))
-          (do (send-message "Новые фотографии отсутствуют")
-              (when (not-empty videos)
-                (notify hot-dir)))))
+        (do
+          (doseq [art to-upload]
+            (try
+              (upload-fotos art)
+              (println (str "upload " art " to server"))
+              (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
+          (notify hot-dir))
+        (do (send-message "Новые фотографии отсутствуют")
+            (when (not-empty videos)
+              (notify hot-dir)))))
 
     (catch Exception e
       (send-message (str "caught exception: " (.getMessage e)))
