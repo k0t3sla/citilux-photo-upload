@@ -53,9 +53,17 @@
                   (str (str/join " - " v) " шт\n"))
         png-out (for [v freq-png]
                   (str (str/join " - " v) " шт\n"))
-        msg (str (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out))) "\n"
+        msg (str (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out)))
                  (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - \n" (apply str mp4-out)))
                  (when (not-empty psd-out) (str "Добавлены psd фото по следующим позициям - \n" (apply str mp4-out)))
                  (when (not-empty png-out) (str "Добавлены новые png по следующим позициям - \n" (apply str mp4-out))))]
     (println msg)
-    (send-message msg)))
+    (when-not (str/blank? msg)
+      (send-message msg))))
+
+
+
+(notify (mapv str (fs/glob "C:\\Users\\li\\Downloads\\HOTDIR\\HOTDIR" "**{.jpg,jpeg}")))
+
+
+
