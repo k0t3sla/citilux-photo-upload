@@ -93,21 +93,19 @@
     (remove nil? out)))
 
 
-(let [to-upload (string/split-lines (slurp "to-upload.txt"))]
-  (when-not (= to-upload [""])
-    (for [art to-upload]
-      (mapv str (fs/glob (str (:out-web+1c env) (create-path art)) "**{.jpeg,jpg}")))
-    (doseq [art to-upload]
-      (try
-        (println (str "upload " art " to server"))
-        (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
-    (send-message (str "На сайт загружены:\n"
-                       (apply str (let [to-upload (string/split-lines (slurp "to-upload.txt"))]
-                                    (for [art to-upload
+(comment
+  (let [file-to-upload (string/split-lines (slurp "to-upload.txt"))]
+    (when-not (= file-to-upload [""])
+      (doseq [art file-to-upload]
+        (try
+          (println (str "upload " art " to server"))
+          (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
+      (send-message (str "На сайт загружены:\n"
+                         (apply str (for [art file-to-upload
                                           :let [files (map get-article (mapv str (fs/glob (str (:out-web+1c env) (create-path art)) "**{.jpeg,jpg}")))]]
                                       (if (not-empty files)
                                         (let [freq (into [] (frequencies files))]
-                                          (str (first (first freq)) " - " (last (first freq)) "шт\n"))
+                                          (str (first (first freq)) " - " (last (first freq)) " шт\n"))
                                         (str art " - Нет фото\n")))))))))
 
 
@@ -122,7 +120,8 @@
           to-upload (set (filter-files true (map get-article jpg-hot-dir) all-articles))
           hot-dir-other (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.png,psd}")) all-articles)
           hot-dir (filter-files true jpg-hot-dir all-articles)
-          hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}")) all-articles)]
+          hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}")) all-articles)
+          file-to-upload (string/split-lines (slurp "to-upload.txt"))]
 
       (compress-video videos)
 
