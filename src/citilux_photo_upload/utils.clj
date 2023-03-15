@@ -60,10 +60,3 @@
     (println msg)
     (when-not (str/blank? msg)
       (send-message msg))))
-
-
-
-(notify (mapv str (fs/glob "C:\\Users\\li\\Downloads\\HOTDIR\\HOTDIR" "**{.jpg,jpeg}")))
-
-
-

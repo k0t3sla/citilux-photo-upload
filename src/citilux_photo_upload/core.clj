@@ -1,6 +1,7 @@
 (ns citilux-photo-upload.core
   (:require [clojure.java.io :as io]
             [babashka.fs :as fs]
+            [clojure.string :as string]
             [clojure.java.shell :as sh]
             [config.core :refer [env]]
             [citilux-photo-upload.upload :refer [upload-fotos]]
@@ -90,6 +91,25 @@
                 (when-not (some #{(get-article file)} all-articles)
                   file)))]
     (remove nil? out)))
+
+
+(let [to-upload (string/split-lines (slurp "to-upload.txt"))]
+  (when-not (= to-upload [""])
+    (for [art to-upload]
+      (mapv str (fs/glob (str (:out-web+1c env) (create-path art)) "**{.jpeg,jpg}")))
+    (doseq [art to-upload]
+      (try
+        (println (str "upload " art " to server"))
+        (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
+    (send-message (str "На сайт загружены:\n"
+                       (apply str (let [to-upload (string/split-lines (slurp "to-upload.txt"))]
+                                    (for [art to-upload
+                                          :let [files (map get-article (mapv str (fs/glob (str (:out-web+1c env) (create-path art)) "**{.jpeg,jpg}")))]]
+                                      (if (not-empty files)
+                                        (let [freq (into [] (frequencies files))]
+                                          (str (first (first freq)) " - " (last (first freq)) "шт\n"))
+                                        (str art " - Нет фото\n")))))))))
+
 
 (defn -main
   []
