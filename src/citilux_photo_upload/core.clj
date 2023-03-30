@@ -107,7 +107,7 @@
           to-upload (set (filter-files true (map get-article foto-hot-dir) all-articles))
           hot-dir-other (filter-files true (mapv str (fs/glob (:hot-dir env) "**{psd}")) all-articles)
           hot-dir (filter-files true foto-hot-dir all-articles)
-          hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg}")) all-articles)
+          hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png}")) all-articles)
           file-to-upload (string/split-lines (slurp "to-upload.txt"))]
 
       (if (not= file-to-upload [""])
