@@ -1,6 +1,5 @@
 (ns citilux-photo-upload.utils
-  (:require [clojure.java.io :as io]
-            [babashka.fs :as fs]
+  (:require [babashka.fs :as fs]
             [clj-http.lite.client :as client]
             [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
@@ -55,8 +54,8 @@
                   (str (str/join " - " v) " шт\n"))
         msg (str (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out)))
                  (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - \n" (apply str mp4-out)))
-                 (when (not-empty psd-out) (str "Добавлены psd фото по следующим позициям - \n" (apply str mp4-out)))
-                 (when (not-empty png-out) (str "Добавлены новые png по следующим позициям - \n" (apply str mp4-out))))]
+                 (when (not-empty psd-out) (str "Добавлены psd фото по следующим позициям - \n" (apply str psd-out)))
+                 (when (not-empty png-out) (str "Добавлены новые png по следующим позициям - \n" (apply str png-out))))]
     (println msg)
     (when-not (str/blank? msg)
       (send-message msg))))
