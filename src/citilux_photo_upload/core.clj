@@ -39,7 +39,7 @@
         tmp-path (str "tmp" delimiter (str (first (fs/split-ext (fs/file-name file))) ".jpg"))
         zipped-size (fs/size tmp-path)
         ratio (float (/ zipped-size orig-size))
-        name (fs/file-name file)
+        name (str (first (fs/split-ext (fs/file-name file))) ".jpg")
         art (get-article name)
         path (str (create-path art) name)]
     (println ratio)
@@ -141,7 +141,7 @@
             (do
               (doseq [art to-upload]
                 (try
-                  #_(upload-fotos art)
+                  (upload-fotos art)
                   (println (str "upload " art " to server"))
                   (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
               (notify hot-dir))
