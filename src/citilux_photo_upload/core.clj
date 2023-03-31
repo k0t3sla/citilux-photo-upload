@@ -26,9 +26,10 @@
   (with-open [rdr (-> (io/input-stream (:articles env))
                       (InputStreamReader. "windows-1251")
                       (BufferedReader.))]
-    (mapv :art (->> rdr
-                    line-seq
-                    (map parse-line-1c)))))
+    (filter #(not= "" %)
+            (mapv :art (->> rdr
+                            line-seq
+                            (map parse-line-1c))))))
 
 (defn move-and-compress [file args]
   (let [path-to-sqoosh (str "." delimiter "node_modules" delimiter ".bin" delimiter (if (fs/windows?)
@@ -87,6 +88,7 @@
   (doseq [art photo-to-upload]
     (try
       (println (str "upload " art " to server"))
+      (upload-fotos art)
       (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
   (send-message (str "На сайт загружены:\n"
                      (apply str (for [art photo-to-upload
