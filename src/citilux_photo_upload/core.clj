@@ -93,7 +93,7 @@
         (println (str "upload " art " to server"))
         (upload-fotos art)
         (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
-    (when correct-arts
+    (when (not-empty correct-arts)
       (send-message (str "На сайт загружены:\n"
                          (apply str (for [art correct-arts
                                           :let [files (map get-article (mapv str (fs/glob (str (:out-web+1c env) (create-path art)) "**{.jpeg,jpg}")))]]
@@ -101,8 +101,8 @@
                                         (let [freq (into [] (frequencies files))]
                                           (str (first (first freq)) " - " (last (first freq)) " шт\n"))
                                         (str art " - Нет фото\n")))))))
-    (when err-arts (send-message (str "На сайт не загружены из за ошибки артикула:\n" (apply str (for [art err-arts]
-                                                                                                   (str art "\n"))))))))
+    (when (not-empty err-arts) (send-message (str "На сайт не загружены из за ошибки артикула:\n" (apply str (for [art err-arts] 
+                                                                                                               (str art "\n"))))))))
 
 (defn -main
   []
