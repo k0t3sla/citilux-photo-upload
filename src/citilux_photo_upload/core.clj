@@ -111,6 +111,7 @@
           err-files (filter-files false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
                                                 (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png}"))) all-articles)
           videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
+          videos_wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.mp4}")) all-articles)
           foto-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}"))
           to-upload (set (filter-files true (map get-article foto-hot-dir) all-articles))
           hot-dir-other (filter-files true (mapv str (fs/glob (:hot-dir env) "**{psd}")) all-articles)
@@ -123,10 +124,14 @@
         (upload-from-file file-to-upload)
         ;; else working with hot-dir
         (do
-          
+
           (when (not-empty videos)
             (doseq [file videos]
-              (move-file file [(:out-web+1c env)])))
+              (move-file file [(:out-source env)])))
+
+          (when (not-empty videos_wb)
+            (doseq [file videos]
+              (move-file file [(:out-wb env)])))
 
           (when (not-empty hot-dir-wb)
             (doseq [file hot-dir-wb]
