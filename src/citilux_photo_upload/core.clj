@@ -109,7 +109,7 @@
   (try
     (let [all-articles (get-articles-1c)
           err-files (filter-files false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
-                                                (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png}"))) all-articles)
+                                                (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png,mp4}"))) all-articles)
           videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
           videos_wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.mp4}")) all-articles)
           foto-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}"))
