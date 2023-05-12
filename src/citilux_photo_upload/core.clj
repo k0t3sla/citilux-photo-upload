@@ -112,6 +112,7 @@
                                                 (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png,mp4}"))) all-articles)
           videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
           videos_wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.mp4}")) all-articles)
+          all_videos (concat videos videos_wb)
           foto-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}"))
           to-upload (set (filter-files true (map get-article foto-hot-dir) all-articles))
           hot-dir-other (filter-files true (mapv str (fs/glob (:hot-dir env) "**{psd}")) all-articles)
@@ -125,13 +126,17 @@
         ;; else working with hot-dir
         (do
 
-          (when (not-empty videos)
-            (doseq [file videos]
-              (move-file file [(:out-source env)])))
+          (when (not-empty all_videos)
+            
+            (when (not-empty videos)
+              (doseq [file videos]
+                (move-file file [(:out-source env)])))
 
-          (when (not-empty videos_wb)
-            (doseq [file videos_wb]
-              (move-file file [(:out-wb env)])))
+            (when (not-empty videos_wb)
+              (doseq [file videos_wb]
+                (move-file file [(:out-wb env)])))
+            
+            (notify all_videos))
 
           (when (not-empty hot-dir-wb)
             (doseq [file hot-dir-wb]
@@ -158,9 +163,7 @@
                   (println (str "upload " art " to server"))
                   (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
               (notify hot-dir))
-            (do (send-message "Новые фотографии отсутствуют")
-                (when (not-empty videos)
-                  (notify hot-dir)))))))
+            (send-message "Новые фотографии отсутствуют")))))
 
     (catch Exception e
       (send-message (str "caught exception: " (.getMessage e)))
