@@ -130,7 +130,7 @@
               (move-file file [(:out-source env)])))
 
           (when (not-empty videos_wb)
-            (doseq [file videos]
+            (doseq [file videos_wb]
               (move-file file [(:out-wb env)])))
 
           (when (not-empty hot-dir-wb)
