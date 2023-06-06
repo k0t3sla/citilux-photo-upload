@@ -1,5 +1,5 @@
 (ns citilux-photo-upload.core
-  (:require [clojure.java.io :as io]
+  (:require #_[clojure.java.io :as io]
             [babashka.fs :as fs]
             [clojure.string :as string]
             [clojure.java.shell :as sh]
@@ -10,17 +10,17 @@
                                                 get-article
                                                 create-path
                                                 send-message]])
-  (:import [java.io BufferedReader InputStreamReader])
+  #_(:import [java.io BufferedReader InputStreamReader])
   (:gen-class))
 
-(defn parse-line-1c
+#_(defn parse-line-1c
   "Парсим csv построчтно выкидывая все кроме артикула"
   [line]
   (let [[_ art _ _ _ _]
         (re-matches #"(.*);(.*);(.*);(.*);(.*)" line)]
     {:art art}))
 
-(defn get-articles-1c
+#_(defn get-articles-1c
   "Получаем все артикула в виде мапы"
   []
   (with-open [rdr (-> (io/input-stream (:articles env))
@@ -85,7 +85,7 @@
     (remove nil? out)))
 
 (defn upload-from-file [photo-to-upload]
-  (let [all-arts (get-articles-1c)
+  (let [all-arts (string/split-lines (slurp "items.txt"))
         err-arts (filter-files false photo-to-upload all-arts)
         correct-arts (filter-files true photo-to-upload all-arts)]
     (doseq [art correct-arts]
@@ -107,7 +107,7 @@
 (defn -main
   []
   (try
-    (let [all-articles (get-articles-1c)
+    (let [all-articles (string/split-lines (slurp "items.txt"))
           err-files (filter-files false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
                                                 (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png,mp4}"))) all-articles)
           videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
