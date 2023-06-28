@@ -137,7 +137,7 @@
           (when (not-empty err-files)
             (send-message (str "ошибки в названиях фото" (mapv fs/file-name err-files))))
 
-          (if (not-empty to-upload)
+          (if (not-empty (concat to-upload hot-dir-wb))
             (do
               (doseq [art to-upload]
                 (try
@@ -147,9 +147,9 @@
               (let [hotdir-filenames (sort (map fs/file-name hot-dir))
                     wb-filenames (sort (map fs/file-name hot-dir-wb))]
                 (if (= hotdir-filenames wb-filenames)
-                  (notify hot-dir)
-                  (do (notify hot-dir)
-                      (notify wb-filenames true)))))
+                  (when (not-empty hot-dir) (notify hot-dir))
+                  (do (when (not-empty hot-dir) (notify hot-dir))
+                      (when (not-empty wb-filenames) (notify wb-filenames true))))))
             (send-message "Новые фотографии отсутствуют")))))
 
     (catch Exception e
