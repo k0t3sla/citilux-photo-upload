@@ -10,26 +10,7 @@
                                                 get-article
                                                 create-path
                                                 send-message]])
-  #_(:import [java.io BufferedReader InputStreamReader])
   (:gen-class))
-
-#_(defn parse-line-1c
-  "Парсим csv построчтно выкидывая все кроме артикула"
-  [line]
-  (let [[_ art _ _ _ _]
-        (re-matches #"(.*);(.*);(.*);(.*);(.*)" line)]
-    {:art art}))
-
-#_(defn get-articles-1c
-  "Получаем все артикула в виде мапы"
-  []
-  (with-open [rdr (-> (io/input-stream (:articles env))
-                      (InputStreamReader. "windows-1251")
-                      (BufferedReader.))]
-    (filter #(not= "" %)
-            (mapv :art (->> rdr
-                            line-seq
-                            (map parse-line-1c))))))
 
 (defn move-and-compress [file args]
   (let [path-to-sqoosh (str "." delimiter "node_modules" delimiter ".bin" delimiter (if (fs/windows?)

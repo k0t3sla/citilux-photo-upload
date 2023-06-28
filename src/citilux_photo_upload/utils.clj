@@ -8,8 +8,8 @@
 
 (defn send-message [text]
   (client/post (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
-               {:body (generate-string {:chat_id (:chat_id env) :text text})
-                :content-type :json
+               {:body (generate-string {:chat_id (:chat_id env) :text text :parse_mode "HTML"})
+                :content-type :json 
                 :accept :json}))
 
 (def delimiter
@@ -33,6 +33,9 @@
             (= (fs/extension x) ext))
           files))
 
+(defn create-art-link [[art q]]
+  (str "<a href=\"https://citilux.ru/store/" (str/lower-case art) "/\">" art "</a> - " q " шт\n"))
+
 (defn notify
   "Перечисляем фото или видео с их колличеством"
   [files]
@@ -45,13 +48,13 @@
         freq-psd (into [] (frequencies (map get-article psd)))
         freq-png (into [] (frequencies (map get-article png)))
         jpg-out (for [v freq-jpg]
-                  (str (str/join " - " v) " шт\n"))
+                  (create-art-link v))
         mp4-out (for [v freq-mp4]
-                  (str (str/join " - " v) " шт\n"))
+                  (create-art-link v))
         psd-out (for [v freq-psd]
-                  (str (str/join " - " v) " шт\n"))
+                  (create-art-link v))
         png-out (for [v freq-png]
-                  (str (str/join " - " v) " шт\n"))
+                  (create-art-link v))
         msg (str (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out)))
                  (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - \n" (apply str mp4-out)))
                  (when (not-empty psd-out) (str "Добавлены psd фото по следующим позициям - \n" (apply str psd-out)))
