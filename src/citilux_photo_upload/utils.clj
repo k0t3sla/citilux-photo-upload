@@ -38,7 +38,7 @@
 
 (defn notify
   "Перечисляем фото или видео с их колличеством"
-  [files]
+  [files & [wb?]]
   (let [jpg (vec (filter-files files "jpg"))
         mp4 (vec (filter-files files "mp4"))
         psd (vec (filter-files files "psd"))
@@ -55,7 +55,9 @@
                   (create-art-link v))
         png-out (for [v freq-png]
                   (create-art-link v))
-        msg (str (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out)))
+        msg (str (when wb?
+                   "В папку WEB+1C_wildberries\n")
+                 (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out)))
                  (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - \n" (apply str mp4-out)))
                  (when (not-empty psd-out) (str "Добавлены psd фото по следующим позициям - \n" (apply str psd-out)))
                  (when (not-empty png-out) (str "Добавлены новые png по следующим позициям - \n" (apply str png-out))))]

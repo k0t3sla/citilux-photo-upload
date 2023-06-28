@@ -9,7 +9,8 @@
                                                 delimiter
                                                 get-article
                                                 create-path
-                                                send-message]])
+                                                send-message
+                                                create-art-link]])
   (:gen-class))
 
 (defn move-and-compress [file args]
@@ -80,7 +81,7 @@
                                           :let [files (map get-article (mapv str (fs/glob (str (:out-web+1c env) (create-path art)) "**{.jpeg,jpg}")))]]
                                       (if (not-empty files)
                                         (let [freq (into [] (frequencies files))]
-                                          (str (first (first freq)) " - " (last (first freq)) " шт\n"))
+                                          (create-art-link freq))
                                         (str art " - Нет фото\n")))))))
     (when (not-empty err-arts) (send-message (str "На сайт не загружены из за ошибки артикула:\n" (apply str (for [art err-arts] 
                                                                                                                (str art "\n"))))))))
@@ -143,7 +144,12 @@
                   (upload-fotos art)
                   (println (str "upload " art " to server"))
                   (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
-              (notify hot-dir))
+              (let [hotdir-filenames (sort (map fs/file-name hot-dir))
+                    wb-filenames (sort (map fs/file-name hot-dir-wb))]
+                (if (= hotdir-filenames wb-filenames)
+                  (notify hot-dir)
+                  (do (notify hot-dir)
+                      (notify wb-filenames true)))))
             (send-message "Новые фотографии отсутствуют")))))
 
     (catch Exception e
