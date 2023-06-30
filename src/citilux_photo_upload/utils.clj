@@ -33,8 +33,10 @@
             (= (fs/extension x) ext))
           files))
 
-(defn create-art-link [[art q]]
-  (str "<a href=\"https://citilux.ru/store/" (str/lower-case art) "/\">" art "</a> - " q " шт\n"))
+(defn create-art-link [[art q] wb?]
+  (if (true? wb?)
+    (str art " - " q " шт\n")
+    (str "<a href=\"https://citilux.ru/store/" (str/lower-case art) "/\">" art "</a> - " q " шт\n")))
 
 (defn notify
   "Перечисляем фото или видео с их колличеством"
@@ -48,13 +50,13 @@
         freq-psd (into [] (frequencies (map get-article psd)))
         freq-png (into [] (frequencies (map get-article png)))
         jpg-out (for [v freq-jpg]
-                  (create-art-link v))
+                  (create-art-link v wb?))
         mp4-out (for [v freq-mp4]
-                  (create-art-link v))
+                  (create-art-link v wb?))
         psd-out (for [v freq-psd]
-                  (create-art-link v))
+                  (create-art-link v wb?))
         png-out (for [v freq-png]
-                  (create-art-link v))
+                  (create-art-link v wb?))
         msg (str (when wb?
                    "В папку WEB+1C_wildberries\n")
                  (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out)))

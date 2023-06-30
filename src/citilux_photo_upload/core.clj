@@ -81,7 +81,7 @@
                                           :let [files (map get-article (mapv str (fs/glob (str (:out-web+1c env) (create-path art)) "**{.jpeg,jpg}")))]]
                                       (if (not-empty files)
                                         (let [freq (into [] (frequencies files))]
-                                          (create-art-link freq))
+                                          (create-art-link freq false))
                                         (str art " - Нет фото\n")))))))
     (when (not-empty err-arts) (send-message (str "На сайт не загружены из за ошибки артикула:\n" (apply str (for [art err-arts] 
                                                                                                                (str art "\n"))))))))
