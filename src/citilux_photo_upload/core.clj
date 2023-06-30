@@ -144,9 +144,6 @@
                   (upload-fotos art)
                   (println (str "upload " art " to server"))
                   (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
-              (let [hotdir-filenames (sort (map fs/file-name hot-dir))
-                    wb-filenames (sort (map fs/file-name hot-dir-wb))]
-                (if (= hotdir-filenames wb-filenames)
                   (when (not-empty hot-dir) (notify hot-dir))
                   (do (when (not-empty hot-dir) (notify hot-dir))
                       (when (not-empty wb-filenames) (notify wb-filenames true))))))
