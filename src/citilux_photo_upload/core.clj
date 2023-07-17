@@ -98,6 +98,7 @@
           foto-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}"))
           to-upload (set (filter-files true (map get-article foto-hot-dir) all-articles))
           hot-dir-other (filter-files true (mapv str (fs/glob (:hot-dir env) "**{psd}")) all-articles)
+          wb-90 (filter-files true (mapv str (fs/glob (:wb-90-hot-dir env) "**{.jpg,jpeg,png}")) all-articles)
           hot-dir (filter-files true foto-hot-dir all-articles)
           hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png}")) all-articles)
           file-to-upload (string/split-lines (slurp "to-upload.txt"))]
@@ -130,6 +131,11 @@
               (copy-file file [(:out-source env)])
               (move-and-compress file [(:out-web+1c env)])))
 
+          (when (not-empty wb-90)
+            (doseq [file wb-90]
+              (copy-file file [(:out-wb-90-source env)])
+              (move-and-compress file [(:out-wb-90 env)])))
+
           (when (not-empty hot-dir-other)
             (doseq [file hot-dir-other]
               (move-file file [(:out-web+1c env) (:out-source env)])))
@@ -144,9 +150,8 @@
                   (upload-fotos art)
                   (println (str "upload " art " to server"))
                   (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
-                  (when (not-empty hot-dir) (notify hot-dir))
-                  (do (when (not-empty hot-dir) (notify hot-dir))
-                      (when (not-empty wb-filenames) (notify wb-filenames true))))))
+              (when (not-empty hot-dir) (notify hot-dir))
+              (when (not-empty hot-dir-wb) (notify hot-dir-wb true)))
             (send-message "Новые фотографии отсутствуют")))))
 
     (catch Exception e
