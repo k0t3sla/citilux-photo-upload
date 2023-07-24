@@ -1,6 +1,5 @@
 (ns citilux-photo-upload.core
-  (:require #_[clojure.java.io :as io]
-            [babashka.fs :as fs]
+  (:require [babashka.fs :as fs]
             [clojure.string :as string]
             [clojure.java.shell :as sh]
             [config.core :refer [env]]
@@ -10,7 +9,8 @@
                                                 get-article
                                                 create-path
                                                 send-message
-                                                create-art-link]])
+                                                create-art-link
+                                                get-all-articles]])
   (:gen-class))
 
 (defn move-and-compress [file args]
@@ -89,7 +89,7 @@
 (defn -main
   []
   (try
-    (let [all-articles (string/split-lines (slurp "items.txt"))
+    (let [all-articles (get-all-articles)
           err-files (filter-files false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
                                                 (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png,mp4}"))) all-articles)
           videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)

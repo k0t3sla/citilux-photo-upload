@@ -1,5 +1,5 @@
 (ns citilux-photo-upload.upload
-  (:require [clj-http.lite.client :as client]
+  (:require [clj-http.client :as client]
             [clojure.java.io :as io]
             [babashka.fs :as fs]
             [cheshire.core :as ch]
@@ -25,11 +25,11 @@
               :detail detail-foto
               :photos encoded-fotos}
         resp (try
-               (client/get (:url env)
-                           {:basic-auth [(:login env) (:password env)]
-                            :body (ch/generate-string data)
-                            :content-type :json
-                            :conn-timeout 300000})
+               (client/post (:url env)
+                            {:headers {"Authorization-Token" (:token-site env)}
+                             :body (ch/generate-string data)
+                             :content-type :json
+                             :conn-timeout 300000})
                (catch Exception e (send-message (str "caught exception: " (.getMessage e)))))]
     (when (not= (:status resp) 200)
       (send-message (str "проблемы при загрузке фотографий - " art)))))

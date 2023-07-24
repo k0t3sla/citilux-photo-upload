@@ -1,6 +1,6 @@
 (ns citilux-photo-upload.utils
   (:require [babashka.fs :as fs]
-            [clj-http.lite.client :as client]
+            [clj-http.client :as client]
             [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
             [clojure.string :as str])
@@ -17,6 +17,11 @@
   (if (fs/windows?)
     (str "\\")
     (str "/")))
+
+(defn parse-resp [resp]
+  (str/split (apply str (->> resp
+                             (drop 4)
+                             (drop-last 4))) #"\\\",\\\""))
 
 (defn create-path
   "Созание пути для сохранения, первые 3 ,5 весь артикул"
@@ -66,3 +71,9 @@
     (println msg)
     (when-not (str/blank? msg)
       (send-message msg))))
+
+(defn get-all-articles []
+  (-> (client/post (:get-all-articles-url env)
+                   {:headers {"Authorization" (:token-1c env)}})
+      :body
+      parse-resp))
