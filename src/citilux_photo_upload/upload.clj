@@ -32,4 +32,4 @@
                              :conn-timeout 300000})
                (catch Exception e (send-message (str "caught exception: " (.getMessage e)))))]
     (when (not= (:status resp) 200)
-      (send-message (str "проблемы при загрузке фотографий - " art)))))
+      (send-message (str "проблемы при загрузке фотографий - " art " status = " (:status resp))))))
