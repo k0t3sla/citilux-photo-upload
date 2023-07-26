@@ -66,10 +66,9 @@
                   file)))]
     (remove nil? out)))
 
-(defn upload-from-file [photo-to-upload]
-  (let [all-arts (string/split-lines (slurp "items.txt"))
-        err-arts (filter-files false photo-to-upload all-arts)
-        correct-arts (filter-files true photo-to-upload all-arts)]
+(defn upload-from-file [photo-to-upload all-articles]
+  (let [err-arts (filter-files false photo-to-upload all-articles)
+        correct-arts (filter-files true photo-to-upload all-articles)]
     (doseq [art correct-arts]
       (try
         (println (str "upload " art " to server"))
@@ -105,7 +104,7 @@
 
       (if (not= file-to-upload [""])
         ;; if file not empty just uploading
-        (upload-from-file file-to-upload)
+        (upload-from-file file-to-upload all-articles)
         ;; else working with hot-dir
         (do
 
