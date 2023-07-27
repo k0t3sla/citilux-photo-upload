@@ -9,7 +9,6 @@
                                                 get-article
                                                 create-path
                                                 send-message
-                                                create-art-link
                                                 get-all-articles]])
   (:gen-class))
 
