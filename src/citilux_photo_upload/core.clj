@@ -13,12 +13,12 @@
   (:gen-class))
 
 (defn move-and-compress [file args]
-  (let [path-to-sqoosh (str "." delimiter "node_modules" delimiter ".bin" delimiter (if (fs/windows?)
-                                                                                      "squoosh-cli.cmd"
-                                                                                      "squoosh-cli"))
-        _ (sh/sh path-to-sqoosh "--mozjpeg" (:quality env) "-d" "tmp" file)
-        orig-size (fs/size file)
+  (let [mozjpeg-bin (if (fs/windows?)
+                      "./cjpeg-static.exe"
+                      "./cjpeg-static")
         tmp-path (str "tmp" delimiter (str (first (fs/split-ext (fs/file-name file))) ".jpg"))
+        _ (sh/sh mozjpeg-bin "-quality" "85" "-outfile" tmp-path file)
+        orig-size (fs/size file)
         zipped-size (fs/size tmp-path)
         ratio (float (/ zipped-size orig-size))
         name (str (first (fs/split-ext (fs/file-name file))) ".jpg")
@@ -56,18 +56,19 @@
       (fs/copy file (str arg path) {:replace-existing true}))
     (fs/delete-if-exists file)))
 
-(defn filter-files [err? list all-articles]
-  (let [out (for [file list]
-              (if err?
-                (when (some #{(get-article file)} all-articles)
-                  file)
-                (when-not (some #{(get-article file)} all-articles)
-                  file)))]
-    (remove nil? out)))
+(defn filter-files [filter-errors? include-in? files all-articles]
+  (let [filtered (filter some?
+                         (for [file files]
+                           (cond
+                             filter-errors? (when-not (some #{(get-article file)} all-articles) file)
+                             :else (when (some #{(get-article file)} all-articles) file))))]
+    (if include-in?
+      (filter (fn [s] (string/starts-with? (get-article s) "IN")) filtered)
+      (filter (fn [s] (not (string/starts-with? (get-article s) "IN"))) filtered))))
 
 (defn upload-from-file [art-to-upload all-articles]
-  (let [err-arts (vec (filter-files false art-to-upload all-articles))
-        correct-arts (vec (filter-files true art-to-upload all-articles))
+  (let [err-arts (vec (filter-files true false art-to-upload all-articles))
+        correct-arts (vec (filter-files false false art-to-upload all-articles))
         files (for [art correct-arts]
                 (map str (fs/glob (str (:out-web+1c env) (create-path art)) "**{.jpeg,jpg}")))]
     (doseq [art correct-arts]
@@ -84,17 +85,24 @@
   []
   (try
     (let [all-articles (get-all-articles)
-          err-files (filter-files false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
-                                                (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png,mp4}"))) all-articles)
-          videos (filter-files true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
-          videos_wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.mp4}")) all-articles)
+          err-files-inlux (filter-files true true (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
+                                                          (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png,mp4}"))) all-articles)
+          err-files (filter-files true false (concat (mapv str (fs/glob (:hot-dir env) "**{.mp4,png,psd,jpg,jpeg}"))
+                                                     (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png,mp4}"))) all-articles)
+          videos (filter-files false false (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
+          videos_wb (filter-files false false (mapv str (fs/glob (:hot-dir-wb env) "**{.mp4}")) all-articles)
+          videos-inlux (filter-files false true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
+          videos-inlux_wb (filter-files false true (mapv str (fs/glob (:hot-dir-wb env) "**{.mp4}")) all-articles)
           all_videos (concat videos videos_wb)
+          all_videos-inlux (concat videos videos_wb)
           foto-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}"))
-          to-upload (set (filter-files true (map get-article foto-hot-dir) all-articles))
-          hot-dir-other (filter-files true (mapv str (fs/glob (:hot-dir env) "**{psd}")) all-articles)
-          wb-90 (filter-files true (mapv str (fs/glob (:wb-90-hot-dir env) "**{.jpg,jpeg,png}")) all-articles)
-          hot-dir (filter-files true foto-hot-dir all-articles)
-          hot-dir-wb (filter-files true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png}")) all-articles)
+          to-upload (set (filter-files false false (map get-article foto-hot-dir) all-articles))
+          hot-dir-other (filter-files false false (mapv str (fs/glob (:hot-dir env) "**{psd}")) all-articles)
+          wb-90 (filter-files false false (mapv str (fs/glob (:wb-90-hot-dir env) "**{.jpg,jpeg,png}")) all-articles)
+          hot-dir (filter-files false false foto-hot-dir all-articles)
+          hot-dir-wb (filter-files false false (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png}")) all-articles)
+          hot-dir-inlux (filter-files false true (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}")) all-articles)
+          hot-dir-wb-inlux (filter-files false true (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png}")) all-articles)
           file-to-upload (string/split-lines (slurp "to-upload.txt"))]
 
       (if (not= file-to-upload [""])
@@ -104,7 +112,7 @@
         (do
 
           (when (not-empty all_videos)
-            
+
             (when (not-empty videos)
               (doseq [file videos]
                 (move-file file [(:out-source env)])))
@@ -113,6 +121,18 @@
               (doseq [file videos_wb]
                 (move-file file [(:out-wb env)])))
             
+            (notify all_videos))
+
+          (when (not-empty all_videos-inlux)
+
+            (when (not-empty videos-inlux)
+              (doseq [file videos-inlux]
+                (move-file file [(:out-source-inlux env)])))
+
+            (when (not-empty videos-inlux_wb)
+              (doseq [file videos-inlux_wb]
+                (move-file file [(:out-inlux-wb env)])))
+
             (notify all_videos))
 
           (when (not-empty hot-dir-wb)
@@ -124,6 +144,16 @@
             (doseq [file hot-dir]
               (copy-file file [(:out-source env)])
               (move-and-compress file [(:out-web+1c env)])))
+
+          (when (not-empty hot-dir-inlux)
+            (doseq [file hot-dir-inlux]
+              (copy-file file [(:out-source-inlux env)])
+              (move-and-compress file [(:out-inlux env)])))
+
+          (when (not-empty hot-dir-wb-inlux)
+            (doseq [file hot-dir-wb-inlux]
+              (copy-file file [(:out-source-inlux-wb env)])
+              (move-and-compress file [(:out-inlux-wb env)])))
 
           (when (not-empty wb-90)
             (doseq [file wb-90]
@@ -137,6 +167,12 @@
           (when (not-empty err-files)
             (send-message (str "ошибки в названиях фото" (mapv fs/file-name err-files))))
 
+          (when (not-empty err-files-inlux)
+            (send-message (str "ошибки в названиях фото" (mapv fs/file-name err-files-inlux))))
+
+          (when (not-empty hot-dir-inlux) (notify hot-dir-inlux "В папку INLUX\n"))
+          (when (not-empty hot-dir-wb-inlux) (notify hot-dir-wb-inlux "В папку INLUX-WB\n"))
+
           (if (not-empty (concat to-upload hot-dir-wb))
             (do
               (doseq [art to-upload]
@@ -145,9 +181,10 @@
                   (println (str "upload " art " to server"))
                   (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
               (when (not-empty hot-dir) (notify hot-dir))
-              (when (not-empty hot-dir-wb) (notify hot-dir-wb true)))
+              (when (not-empty hot-dir-wb) (notify hot-dir-wb "В папку WEB+1C_wildberries\n")))
             (send-message "Новые фотографии отсутствуют")))))
 
     (catch Exception e
       (send-message (str "caught exception: " (.getMessage e)))
-      (println (str "caught exception: " (.getMessage e))))))
+      (println (str "caught exception: " (.getMessage e)))))
+  )

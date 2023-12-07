@@ -38,14 +38,14 @@
             (= (fs/extension x) ext))
           files))
 
-(defn create-art-link [[art q] wb?]
-  (if (true? wb?)
+(defn create-art-link [[art q] msg]
+  (if msg
     (str art " - " q " шт\n")
     (str "<a href=\"https://citilux.ru/store/" (str/lower-case art) "/\">" art "</a> - " q " шт\n")))
 
 (defn notify
   "Перечисляем фото или видео с их колличеством"
-  [files & [wb?]]
+  [files & [msg]]
   (let [jpg (vec (filter-files files "jpg"))
         mp4 (vec (filter-files files "mp4"))
         psd (vec (filter-files files "psd"))
@@ -55,15 +55,15 @@
         freq-psd (into [] (frequencies (map get-article psd)))
         freq-png (into [] (frequencies (map get-article png)))
         jpg-out (for [v freq-jpg]
-                  (create-art-link v wb?))
+                  (create-art-link v msg))
         mp4-out (for [v freq-mp4]
-                  (create-art-link v wb?))
+                  (create-art-link v msg))
         psd-out (for [v freq-psd]
-                  (create-art-link v wb?))
+                  (create-art-link v msg))
         png-out (for [v freq-png]
-                  (create-art-link v wb?))
-        msg (str (when wb?
-                   "В папку WEB+1C_wildberries\n")
+                  (create-art-link v msg))
+        msg (str (when msg
+                   msg)
                  (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out)))
                  (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - \n" (apply str mp4-out)))
                  (when (not-empty psd-out) (str "Добавлены psd фото по следующим позициям - \n" (apply str psd-out)))
