@@ -17,7 +17,7 @@
                       "./cjpeg-static.exe"
                       "./cjpeg-static")
         tmp-path (str "tmp" delimiter (str (first (fs/split-ext (fs/file-name file))) ".jpg"))
-        _ (sh/sh mozjpeg-bin "-quality" "85" "-outfile" tmp-path file)
+        _ (sh/sh mozjpeg-bin "-quality" (:quality env) "-outfile" tmp-path file)
         orig-size (fs/size file)
         zipped-size (fs/size tmp-path)
         ratio (float (/ zipped-size orig-size))
@@ -94,7 +94,7 @@
           videos-inlux (filter-files false true (mapv str (fs/glob (:hot-dir env) "**{.mp4}")) all-articles)
           videos-inlux_wb (filter-files false true (mapv str (fs/glob (:hot-dir-wb env) "**{.mp4}")) all-articles)
           all_videos (concat videos videos_wb)
-          all_videos-inlux (concat videos videos_wb)
+          all_videos-inlux (concat videos-inlux videos-inlux_wb)
           foto-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}"))
           to-upload (set (filter-files false false (map get-article foto-hot-dir) all-articles))
           hot-dir-other (filter-files false false (mapv str (fs/glob (:hot-dir env) "**{psd}")) all-articles)
@@ -121,7 +121,7 @@
               (doseq [file videos_wb]
                 (move-file file [(:out-wb env)])))
             
-            (notify all_videos))
+            (notify all_videos "В папку WEB+1C\n"))
 
           (when (not-empty all_videos-inlux)
 
@@ -133,7 +133,7 @@
               (doseq [file videos-inlux_wb]
                 (move-file file [(:out-inlux-wb env)])))
 
-            (notify all_videos))
+            (notify all_videos "В папку INLUX\n"))
 
           (when (not-empty hot-dir-wb)
             (doseq [file hot-dir-wb]
