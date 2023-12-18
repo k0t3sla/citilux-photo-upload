@@ -121,7 +121,7 @@
               (doseq [file videos_wb]
                 (move-file file [(:out-wb env)])))
             
-            (notify all_videos "В папку WEB+1C\n"))
+            (notify all_videos "В папку WEB+1C_wildberries\n"))
 
           (when (not-empty all_videos-inlux)
 
@@ -173,7 +173,7 @@
           (when (not-empty hot-dir-inlux) (notify hot-dir-inlux "В папку INLUX\n"))
           (when (not-empty hot-dir-wb-inlux) (notify hot-dir-wb-inlux "В папку INLUX-WB\n"))
 
-          (if (not-empty (concat to-upload hot-dir-wb))
+          (if (not-empty (concat to-upload hot-dir-wb hot-dir-inlux hot-dir-wb-inlux))
             (do
               (doseq [art to-upload]
                 (try
