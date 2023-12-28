@@ -7,6 +7,8 @@
             [hiccup.page :as hiccup]
             [schejulure.core :as cron]
             [reitit.ring :as ring]
+            [clojure-watch.core :refer [start-watch]]
+            [clojure.java.io :as io]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
             [ring.util.response :as response]
             [citilux-photo-upload.upload :refer [upload-fotos]]
@@ -22,7 +24,9 @@
 (set! *warn-on-reflection* true)
 
 (def all-articles (atom []))
+(def files (atom []))
 (defn update-articles []
+  (println "updating articles")
   (reset! all-articles (get-all-articles)))
 
 (defn move-and-compress [file args]
@@ -133,9 +137,9 @@
      :not-correct-dimm not-correct-dimm}))
 
 
-(get-files)
-
-
+(defn update-files []
+  (println "updating articles")
+  (reset! files (get-files)))
 
 (defn send-files
   []
@@ -220,13 +224,14 @@
       (println (str "caught exception: " (.getMessage e))))))
 
 (defn form-page [_]
-  (let [files (get-files)
+  (let [files @files
         hot-dir-files (concat (:hot-dir files) (:hot-dir-wb files))
         err-files (concat (:err-files-inlux files) (:err-files files))
         not-correct-dimm (:not-correct-dimm files)]
     (hiccup/html5 
      [:body
       [:head (hiccup/include-css "styles.css")]
+      [:head (hiccup/include-js "htmx.js")]
       [:h1 "Список товаров"]
       (if (> (count hot-dir-files) 0)
         [:ul
@@ -252,7 +257,8 @@
       [:br]
       [:form {:method "POST" :action "/upload"}
        [:textarea {:rows 10 :cols 45 :name "arts" :required true :placeholder "CL123456, CL234567"}]
-       [:button {:type "submit"} "Загрузить на сервер"]]])))
+       [:button {:type "submit"} "Загрузить на сервер"]]
+      [:button {:hx-post "/update" :hx-swap "outerHTML"} "Обновить список"]])))
 
 (defn hotdir-handler [_]
   (try (send-files)
@@ -268,6 +274,12 @@
            [:h1 "Что то пошло не так"]
            [:h2 e]
            [:a {:href "/"} "Вернутся на главню"]]))))
+
+(defn update-handler [_]
+  (try (update-articles)
+       "<h2>Успешно обновлено</h2>"
+       (catch Exception e
+         (str "<h2>Ошибка</h2>" e))))
 
 (defn upload-to-server [request]
   (let [params (-> request
@@ -315,6 +327,11 @@
       {:post (fn [request]
                (-> (upload-to-server request)
                    (response/response)
+                   (response/header "content-type" "text/html")))}]
+     ["/update"
+      {:post (fn [request]
+               (-> (update-handler request) 
+                   (response/response)
                    (response/header "content-type" "text/html")))}]])))
 
 (defmethod response/resource-data :resource
@@ -344,8 +361,22 @@
                    (assoc api-defaults :static {:resources "public"}))
                   {:port 8080})))
 
+(defn watcher []
+  (start-watch [{:path (:hot-dir env)
+                 :event-types [:create :modify :delete]
+                 :bootstrap (fn [path] (println "Starting to watch " path))
+                 :callback (fn [_ _] (update-files))
+                 :options {:recursive false}}])
+  (start-watch [{:path (:hot-dir-wb env)
+                 :event-types [:create :modify :delete]
+                 :bootstrap (fn [path] (println "Starting to watch " path))
+                 :callback (fn [_ _] (update-files))
+                 :options {:recursive false}}]))
+
 (defn -main
   [& args]
+  (update-files)
+  (watcher)
   (update-articles)
   (if args
     (do (cron/schedule {:hour (range 0 24)} update-articles)
@@ -357,6 +388,8 @@
         (send-files)))))
 
 (comment
+
+
   
   (start-server)
   (stop-server)
@@ -367,10 +400,4 @@
 
 
 (comment
-  
-  (let [foto-hot-dir (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}"))
-        arts (update-articles)]
-    (filter-files {:files foto-hot-dir}))
-  
-  (clojure.pprint/pprint (update-articles))
-  )
+)

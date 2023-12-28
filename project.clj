@@ -13,6 +13,7 @@
                  [compojure "1.7.0"]
                  [hiccup "1.0.5"]
                  [schejulure "1.0.1"]
+                 [clojure-watch "0.1.14"]
                  
                  [clj-http "3.12.3"]
                  [com.github.jai-imageio/jai-imageio-core "1.4.0"]
