@@ -28,6 +28,7 @@
                (client/post (:url env)
                             {:headers {"Authorization-Token" (:token-site env)}
                              :body (ch/generate-string data)
+                             :insecure true
                              :content-type :json
                              :conn-timeout 300000})
                (catch Exception e (send-message (str "caught exception: " (.getMessage e)))))]

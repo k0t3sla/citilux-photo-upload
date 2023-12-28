@@ -3,14 +3,16 @@
             [clj-http.client :as client]
             [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
+            [clojure.java.io :as io]
             [clojure.string :as str])
   (:gen-class))
 
 (defn send-message [text]
-  (client/post (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
-               {:body (generate-string {:chat_id (:chat_id env) :text text :parse_mode "HTML"})
-                :content-type :json 
-                :accept :json}))
+  (client/post
+   (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
+   {:body (generate-string {:chat_id (:chat_id env) :text text :parse_mode "HTML"})
+    :headers {"Content-Type" "application/json"
+              "Accept" "application/json"}}))
 
 (def delimiter
   "разделитель в зависимости от ос для создания пути"
@@ -77,3 +79,15 @@
                    {:headers {"Authorization" (:token-1c env)}})
       :body
       parse-resp))
+
+(defn get-dimm [^String path]
+  (with-open [^java.io.InputStream r (io/input-stream path)]
+    (let [^java.awt.image.BufferedImage image (javax.imageio.ImageIO/read r)
+          ^int w (try
+                   (.getWidth image)
+                   (catch Exception e (.getMessage e)))
+          ^int h (try
+                   (.getHeight image)
+                   (catch Exception e (.getMessage e)))]
+      (or (and (= w 2000) (or (= h 2000) (= h 2667)))
+          false))))
