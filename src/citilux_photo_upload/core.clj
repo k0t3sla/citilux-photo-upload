@@ -226,6 +226,7 @@
 
 (defn form-page [_]
   (let [files @files
+        videos (concat (:videos-inlux files) (:videos-inlux_wb files) (:videos files) (:videos_wb files))
         hot-dir-files (concat (:hot-dir files) (:hot-dir-wb files))
         err-files (concat (:err-files-inlux files) (:err-files files))
         not-correct-dimm (:not-correct-dimm files)]
@@ -234,10 +235,15 @@
       [:head (hiccup/include-css "styles.css")]
       [:head (hiccup/include-js "htmx.js")]
       [:h1 "Список товаров"]
-      (if (> (count hot-dir-files) 0)
-        [:ul
-         (for [file hot-dir-files]
-           [:li (fs/file-name file)])
+      (if (> (or (count hot-dir-files)
+                 (count videos)) 0)
+        [:div 
+         [:ul
+          (for [file hot-dir-files]
+            [:li (fs/file-name file)])]
+         [:ul
+          (for [file videos]
+            [:li (fs/file-name file)])]
          [:form {:method "POST" :action "/hot-dir-upload"}
           [:button {:type "submit"} "Загрузить"]]]
         [:h2 "Фото отсутствуют"])
