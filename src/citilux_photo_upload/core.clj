@@ -5,10 +5,10 @@
             [config.core :refer [env]]
             [org.httpkit.server :as http]
             [hiccup.page :as hiccup]
+            [hiccup.core :as h]
             [schejulure.core :as cron]
             [reitit.ring :as ring]
             [clojure-watch.core :refer [start-watch]]
-            [clojure.java.io :as io]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
             [ring.util.response :as response]
             [citilux-photo-upload.upload :refer [upload-fotos]]
@@ -76,12 +76,13 @@
 (defn filter-files [{:keys [filter-errors? include-in? files]}]
   (let [filtered (filter some?
                          (for [file files]
-                           (cond
-                             filter-errors? (when-not (some #{(get-article file)} @all-articles) file)
-                             :else (when (some #{(get-article file)} @all-articles) file))))]
+                           (let [article (get-article file)]
+                             (cond
+                               filter-errors? (when-not (some #{article} @all-articles) file)
+                               :else (when (some #{article} @all-articles) file)))))]
     (if include-in?
-      (filter (fn [s] (string/starts-with? (get-article s) "IN")) filtered)
-      (filter (fn [s] (not (string/starts-with? (get-article s) "IN"))) filtered))))
+      (filter #(string/starts-with? (get-article %) "IN") filtered)
+      (filter #(not (string/starts-with? (get-article %) "IN")) filtered))))
 
 (defn upload-from-file [art-to-upload]
   (let [err-arts (vec (filter-files {:filter-errors? true :files art-to-upload}))
@@ -95,7 +96,7 @@
         (catch Exception e (send-message (str "upload on server caught exception: " (.getMessage e))))))
     (when (not-empty files)
       (notify (flatten files)))
-    (when (not-empty err-arts) (send-message (str "На сайт не загружены из за ошибки артикула:\n" (apply str (for [art err-arts] 
+    (when (not-empty err-arts) (send-message (str "На сайт не загружены из за ошибки артикула:\n" (apply str (for [art err-arts]
                                                                                                                (str art "\n"))))))))
 
 (defn get-files []
@@ -144,70 +145,70 @@
 (defn send-files
   []
   (try
-    (let [files (get-files)] 
-      
+    (let [files (get-files)]
+
       (when (not-empty (concat (:videos files) (:videos_wb files)))
-    
+
         (when (not-empty (:videos files))
           (doseq [file (:videos files)]
             (move-file file [(:out-source env)])))
-    
+
         (when (not-empty (:videos_wb files))
           (doseq [file (:videos_wb files)]
             (move-file file [(:out-wb env)])))
-    
+
         (notify (concat (:videos files) (:videos_wb files)) "В папку WEB+1C_wildberries\n"))
-    
+
       (when (not-empty (concat (:videos-inlux files) (:videos-inlux_wb files)))
-    
+
         (when (not-empty (:videos-inlux files))
           (doseq [file (:videos-inlux files)]
             (move-file file [(:out-source-inlux env)])))
-    
+
         (when (not-empty (:videos-inlux_wb files))
           (doseq [file (:videos-inlux_wb files)]
             (move-file file [(:out-inlux-wb env)])))
-    
+
         (notify (concat (:videos-inlux files) (:videos-inlux_wb files)) "В папку INLUX\n"))
-    
+
       (when (not-empty (:hot-dir-wb files))
         (doseq [file (:hot-dir-wb files)]
           (copy-file file [(:out-source-wb env)])
           (move-and-compress file [(:out-wb env)])))
-    
+
       (when (not-empty (:hot-dir files))
         (doseq [file (:hot-dir files)]
           (copy-file file [(:out-source env)])
           (move-and-compress file [(:out-web+1c env)])))
-    
+
       (when (not-empty (:hot-dir-inlux files))
         (doseq [file (:hot-dir-inlux files)]
           (copy-file file [(:out-source-inlux env)])
           (move-and-compress file [(:out-inlux env)])))
-    
+
       (when (not-empty (:hot-dir-wb-inlux files))
         (doseq [file (:hot-dir-wb-inlux files)]
           (copy-file file [(:out-source-inlux-wb env)])
           (move-and-compress file [(:out-inlux-wb env)])))
-    
+
       (when (not-empty (:wb-90 files))
         (doseq [file (:wb-90 files)]
           (copy-file file [(:out-wb-90-source env)])
           (move-and-compress file [(:out-wb-90 env)])))
-    
+
       (when (not-empty (:hot-dir-other files))
         (doseq [file (:hot-dir-other files)]
           (move-file file [(:out-web+1c env) (:out-source env)])))
-    
+
       (when (not-empty (:err-files files))
         (send-message (str "ошибки в названиях фото" (mapv fs/file-name (:err-files files)))))
-    
+
       (when (not-empty (:err-files-inlux files))
         (send-message (str "ошибки в названиях фото" (mapv fs/file-name (:err-files-inlux files)))))
-    
+
       (when (not-empty (:hot-dir-inlux files)) (notify (:hot-dir-inlux files) "В папку INLUX\n"))
       (when (not-empty (:hot-dir-wb-inlux files)) (notify (:hot-dir-wb-inlux files) "В папку INLUX-WB\n"))
-    
+
       (if (not-empty (concat (:to-upload files) (:hot-dir-wb files) (:hot-dir-inlux files) (:hot-dir-wb-inlux files)))
         (do
           (doseq [art (:to-upload files)]
@@ -218,7 +219,7 @@
           (when (not-empty (:hot-dir files)) (notify (:hot-dir files)))
           (when (not-empty (:hot-dir-wb files)) (notify (:hot-dir-wb files) "В папку WEB+1C_wildberries\n")))
         (send-message "Новые фотографии отсутствуют")))
-    
+
     (catch Exception e
       (send-message (str "caught exception: " (.getMessage e)))
       (println (str "caught exception: " (.getMessage e))))))
@@ -277,9 +278,11 @@
 
 (defn update-handler [_]
   (try (update-articles)
-       "<h2>Успешно обновлено</h2>"
+       (h/html
+        [:h2 "Успешно обновлен список артикулов"])
        (catch Exception e
-         (str "<h2>Ошибка</h2>" e))))
+         [:h2 "Ошибка"]
+         [:h3 e])))
 
 (defn upload-to-server [request]
   (let [params (-> request
@@ -293,14 +296,18 @@
          (hiccup/html5
           [:body
            [:head (hiccup/include-css "styles.css")]
-           [:h1 "Фото по этим артикулам отправлены на сервер"]
-           [:ul (for [art correct]
-                  [:li art])]
-           (when err
-             [:hr]
-             [:ul "Артикула введеные с ошибками"
-              (for [e err]
-                [:li e])])
+           (when (> (count correct) 0)
+             [:div
+              [:p "Фото по этим артикулам отправлены на сервер"]
+              [:ul (for [art correct]
+                     [:li art])]])
+           (when (> (count err) 0)
+             [:div
+              [:hr]
+              [:p "Артикула введеные с ошибками"]
+              [:ul
+               (for [e err]
+                 [:li e])]])
            [:a {:href "/"} "Вернутся на главню"]])
          (catch Exception e
            (hiccup/html5
@@ -330,7 +337,7 @@
                    (response/header "content-type" "text/html")))}]
      ["/update"
       {:post (fn [request]
-               (-> (update-handler request) 
+               (-> (update-handler request)
                    (response/response)
                    (response/header "content-type" "text/html")))}]])))
 
@@ -388,16 +395,10 @@
         (send-files)))))
 
 (comment
-
-
+  (update-files)
+  (watcher)
+  (update-articles)
   
   (start-server)
-  (stop-server)
-  
+  (stop-server) 
   )
-
-
-
-
-(comment
-)
