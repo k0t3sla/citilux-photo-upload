@@ -4,10 +4,11 @@
             [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
             [clojure.java.io :as io]
+            [mikera.image.core :as img]
             [clojure.string :as str])
   (:gen-class))
 
-(defn send-message [text]
+(defn send-message! [text]
   (client/post
    (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
    {:body (generate-string {:chat_id (:chat_id env) :text text :parse_mode "HTML"})
@@ -45,34 +46,26 @@
     (str art " - " q " шт\n")
     (str "<a href=\"https://citilux.ru/store/" (str/lower-case art) "/\">" art "</a> - " q " шт\n")))
 
-(defn notify
+(defn process-files [files ext heading err?]
+  (let [filtered-files (vec (filter-files files ext))
+        freq-files (into [] (frequencies (map get-article filtered-files)))
+        out (for [v freq-files]
+              (create-art-link v heading))]
+    (when (not-empty out)
+      (if err?
+        (str ext " по следующим позициям - \n" (apply str out))
+        (str "Добавлены новые " ext " по следующим позициям - \n" (apply str out))))))
+
+(defn notify!
   "Перечисляем фото или видео с их колличеством"
-  [files & [msg]]
-  (let [jpg (vec (filter-files files "jpg"))
-        mp4 (vec (filter-files files "mp4"))
-        psd (vec (filter-files files "psd"))
-        png (vec (filter-files files "png"))
-        freq-jpg (into [] (frequencies (map get-article jpg)))
-        freq-mp4 (into [] (frequencies (map get-article mp4)))
-        freq-psd (into [] (frequencies (map get-article psd)))
-        freq-png (into [] (frequencies (map get-article png)))
-        jpg-out (for [v freq-jpg]
-                  (create-art-link v msg))
-        mp4-out (for [v freq-mp4]
-                  (create-art-link v msg))
-        psd-out (for [v freq-psd]
-                  (create-art-link v msg))
-        png-out (for [v freq-png]
-                  (create-art-link v msg))
-        msg (str (when msg
-                   msg)
-                 (when (not-empty jpg-out) (str "Добавлены новые фото по следующим позициям - \n" (apply str jpg-out)))
-                 (when (not-empty mp4-out) (str "Добавлены новые видео по следующим позициям - \n" (apply str mp4-out)))
-                 (when (not-empty psd-out) (str "Добавлены psd фото по следующим позициям - \n" (apply str psd-out)))
-                 (when (not-empty png-out) (str "Добавлены новые png по следующим позициям - \n" (apply str png-out))))]
+  [{:keys [files heading err?]}]
+  (let [file-types ["jpg" "mp4" "psd" "png"]
+        msgs (for [file-type file-types]
+               (process-files files file-type heading err?))
+        msg (str (when heading heading) (apply str msgs))]
     (println msg)
     (when-not (str/blank? msg)
-      (send-message msg))))
+      (send-message! msg))))
 
 (defn get-all-articles []
   (-> (client/post (:get-all-articles-url env)
@@ -80,14 +73,13 @@
       :body
       parse-resp))
 
-(defn get-dimm [^String path]
-  (with-open [^java.io.InputStream r (io/input-stream path)]
-    (let [^java.awt.image.BufferedImage image (javax.imageio.ImageIO/read r)
-          ^int w (try
-                   (.getWidth image)
-                   (catch Exception e (.getMessage e)))
-          ^int h (try
-                   (.getHeight image)
-                   (catch Exception e (.getMessage e)))]
-      (or (and (= w 2000) (or (= h 2000) (= h 2667)))
-          false))))
+(defn check-dimm [^String path]
+  (let [img (img/load-image path)
+        ^int w (try
+                 (img/width img)
+                 (catch Exception e (.getMessage e)))
+        ^int h (try
+                 (img/height img)
+                 (catch Exception e (.getMessage e)))]
+    {:path path :correct-dimm? (or (and (= w 2000) (or (= h 2000) (= h 2667)))
+                                   false)}))

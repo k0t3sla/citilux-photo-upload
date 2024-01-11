@@ -1,6 +1,6 @@
-(defproject citilux-photo-upload "0.1.0-SNAPSHOT"
-  :description "FIXME: write description"
-  :url "http://example.com/FIXME"
+(defproject citilux-photo-upload "1.0"
+  :description "Process content files citilux"
+  :url "http://citilux.ru/"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.11.1"]
@@ -13,10 +13,9 @@
                  [compojure "1.7.0"]
                  [hiccup "1.0.5"]
                  [schejulure "1.0.1"]
-                 [clojure-watch "0.1.14"]
                  
                  [clj-http "3.12.3"]
-                 [com.github.jai-imageio/jai-imageio-core "1.4.0"]
+                 [net.mikera/imagez "0.12.0"] 
 
                  [metosin/reitit "0.3.9"]
                  [ring/ring-defaults "0.3.2"]
@@ -27,20 +26,4 @@
   :jvm-opts ["-Dconfig=config.edn"]   
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
-                       :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}}
-  
-  :plugins [[io.taylorwood/lein-native-image "0.3.0"]
-            [nrepl/lein-nrepl "0.3.2"]]
-  :native-image {:name     "app"
-                 :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
-                 :opts     ["--enable-url-protocols=http"
-                            "--report-unsupported-elements-at-runtime"
-                            "--initialize-at-build-time"
-                            "--allow-incomplete-classpath"
-                              ;;avoid spawning build server
-                            "--no-server"
-                            "-H:ConfigurationResourceRoots=resources"
-                            ~(str "-H:ResourceConfigurationFiles="
-                                  (System/getProperty "user.dir")
-                                  (java.io.File/separator)
-                                  "config.edn")]})
+                       :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
