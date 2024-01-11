@@ -6,7 +6,7 @@
             [org.httpkit.server :as http]
             [hiccup.page :as hiccup]
             [hiccup.core :as h]
-            [schejulure.core :as cron]
+            #_[schejulure.core :as cron]
             [reitit.ring :as ring]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
             [ring.util.response :as response]
@@ -392,9 +392,10 @@
   [& args]
   (update-articles!)
   (if args
-    (do (cron/schedule {:hour (range 0 24)} update-articles!)
+    #_(do (cron/schedule {:hour (range 0 24)} update-articles!)
         (start-server))
     ;;
+    (start-server)
     (let [file-to-upload (string/split-lines (slurp "to-upload.txt"))]
       (if (not= file-to-upload [""])
         (upload-from-file file-to-upload)
