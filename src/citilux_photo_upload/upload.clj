@@ -4,7 +4,7 @@
             [babashka.fs :as fs]
             [cheshire.core :as ch]
             [config.core :refer [env]]
-            [citilux-photo-upload.utils :refer [create-path send-message]])
+            [citilux-photo-upload.utils :refer [create-path send-message!]])
   (:gen-class))
 
 (defn encode64 [path]
@@ -31,6 +31,6 @@
                              :insecure true
                              :content-type :json
                              :conn-timeout 300000})
-               (catch Exception e (send-message (str "caught exception: " (.getMessage e)))))]
+               (catch Exception e (send-message! (str "caught exception: " (.getMessage e)))))]
     (when (not= (:status resp) 200)
-      (send-message (str "проблемы при загрузке фотографий - " art " status = " (:status resp))))))
+      (send-message! (str "проблемы при загрузке фотографий - " art " status = " (:status resp))))))
