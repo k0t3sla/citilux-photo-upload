@@ -16,6 +16,7 @@
                                                 delimiter
                                                 get-article
                                                 create-path
+                                                report-imgs-1c!
                                                 send-message!
                                                 get-all-articles]])
   (:gen-class))
@@ -175,7 +176,9 @@
           (if (:correct-dimm? (check-dimm file))
             (do (copy-file file [(:out-source env)])
                 (move-and-compress file [(:out-web+1c env)]))
-            (swap! err-fotos conj file))))
+            (swap! err-fotos conj file))) 
+        (report-imgs-1c! (mapv get-article
+                               (remove #(contains? (set @err-fotos) %) (:hot-dir files)))))
 
       (when (not-empty (:hot-dir-inlux files))
         (doseq [file (:hot-dir-inlux files)]
@@ -405,5 +408,5 @@
   (update-articles!)
 
   (start-server)
-  (stop-server)
-)
+  (stop-server) 
+  )

@@ -68,10 +68,18 @@
       (send-message! msg))))
 
 (defn get-all-articles []
-  (-> (client/post (:get-all-articles-url env)
+  (-> (client/post (str (:root-1c-endpoint env) (:get-all-articles-url env))
                    {:headers {"Authorization" (:token-1c env)}})
       :body
       parse-resp))
+
+(defn report-imgs-1c! [arts]
+  (when-not (= "OK" (-> (client/post (str (:root-1c-endpoint env) (:imgs-report-1c env))
+                                    {:headers {"Authorization" (:token-1c-foto env)}
+                                     :throw-exceptions false
+                                     :body (generate-string arts)})
+                       :reason-phrase))
+    (send-message! "Ошибка отправки в 1с")))
 
 (defn check-dimm [^String path]
   (let [img (img/load-image path)
@@ -83,3 +91,10 @@
                  (catch Exception e (.getMessage e)))]
     {:path path :correct-dimm? (or (and (= w 2000) (or (= h 2000) (= h 2667)))
                                    false)}))
+
+
+(comment
+  (report-imgs-1c! (mapv get-article ["CL704320"
+                                      "CL704330"
+                                      "CL704340"
+                                      "CL704341"])))
