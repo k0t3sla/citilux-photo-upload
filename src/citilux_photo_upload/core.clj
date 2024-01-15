@@ -229,7 +229,7 @@
         (send-message! "Новые фотографии отсутствуют"))
 
       (when (not-empty @err-fotos)
-        (notify! {:files @err-fotos :heading "Ошибки в названиях фалов\n"
+        (notify! {:files @err-fotos :heading "Ошибки в размерах фото\n"
                                    :err? true})))
 
     (catch Exception e
@@ -409,6 +409,8 @@
 (comment
   (update-articles!)
 
+  (get-files)
+  (send-files!)
   (start-server)
   (stop-server) 
   )
