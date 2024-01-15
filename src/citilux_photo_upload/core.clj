@@ -288,8 +288,9 @@
        (hiccup/html5
         [:body
          [:head (hiccup/include-css "styles.css")]
-         [:h1 "Фото сжаты, разложены по папкам и отпраленны на сервер"]
-         [:a {:href "/"} "Вернутся на главню"]])
+         [:div {:class "flex flex-col items-center pt-10"}
+          [:h1 "Фото сжаты, разложены по папкам и отпраленны на сервер"]
+          [:a {:href "/" :class "p-10 btn btn-success"} "Вернутся на главню"]]])
        (catch Exception e
          (hiccup/html5
           [:body
@@ -336,9 +337,10 @@
            (hiccup/html5
             [:body
              [:head (hiccup/include-css "styles.css")]
-             [:h1 "Что то пошло не так"]
-             [:h2 e]
-             [:a {:href "/"} "Вернутся на главню"]])))))
+             [:div {:class "flex flex-col items-center pt-10"}
+              [:h1 "Что то пошло не так"]
+              [:h2 e]
+              [:a {:href "/" :class "btn btn-success"} "Вернутся на главную"]]])))))
 
 (def handler
   (ring/ring-handler
