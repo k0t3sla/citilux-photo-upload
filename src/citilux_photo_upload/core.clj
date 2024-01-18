@@ -262,13 +262,15 @@
       [:head (hiccup/include-js "htmx.js")]
       [:main {:class "container mx-auto grid grid-cols-2 gap-4"}
        [:div {:class "flex items-center justify-center"}
-        (display-files {:files (:hot-dir files) :heading "Hot Dir" :when-empty "Фото отсутствуют"})]
+        (display-files {:files (concat (:hot-dir files) (:hot-dir-inlux files)) :heading "Hot Dir" :when-empty "Фото отсутствуют"})]
        [:div {:class "flex items-center justify-center"}
-        (display-files {:files (:hot-dir-wb files) :heading "Hot Dir WB" :when-empty "Фото отсутствуют"})]
+        (display-files {:files (concat (:hot-dir-wb-inlux files) (:hot-dir-wb files)) :heading "Hot Dir WB" :when-empty "Фото отсутствуют"})]
        [:div {:class "flex items-center justify-center"}
-        (display-files {:files (concat (:videos files) (:videos-inlux files))})]
+        (when (> (count (concat (:videos files) (:videos-inlux files))) 0)
+          (display-files {:files (concat (:videos files) (:videos-inlux files)) :heading "video hot-dir"}))]
        [:div {:class "flex items-center justify-center"}
-        (display-files {:files (concat (:videos_wb files) (:videos-inlux_wb files))})] 
+        (when (> (count (concat (:videos_wb files) (:videos-inlux_wb files))) 0)
+          (display-files {:files (concat (:videos_wb files) (:videos-inlux_wb files)) :heading "video hot-dir-wb"}))]
        (when (> (count err-files) 0)
          [:div
           [:h3 "Файлы с ошибками"]
@@ -276,8 +278,8 @@
            (for [file (concat err-files)]
              [:li (fs/file-name file)])]])]
       (when (> (count (concat
-                       (:hot-dir files) (:videos files) (:videos-inlux files)
-                       (:hot-dir-wb files) (:videos_wb files) (:videos-inlux_wb files))) 0)
+                       (:hot-dir files) (:hot-dir-inlux files) (:videos files) (:videos-inlux files)
+                       (:hot-dir-wb files) (:hot-dir-wb-inlux files) (:videos_wb files) (:videos-inlux_wb files))) 0)
         [:div {:class "flex flex-col items-center pt-10"}
          [:form {:method "POST" :action "/hot-dir-upload"}
           [:button {:type "submit" :class "btn btn-primary btn-wide"} "Загрузить"]]])
