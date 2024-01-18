@@ -3,7 +3,6 @@
             [clj-http.client :as client]
             [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
-            [clojure.java.io :as io]
             [mikera.image.core :as img]
             [clojure.string :as str])
   (:gen-class))
@@ -36,7 +35,7 @@
   [file]
   (str/trim (first (str/split (fs/file-name file) #"_(?!.*_)"))))
 
-(defn filter-files [files ext]
+(defn filter-files-ext [files ext]
   (filter (fn [x]
             (= (fs/extension x) ext))
           files))
@@ -47,7 +46,7 @@
     (str "<a href=\"https://citilux.ru/store/" (str/lower-case art) "/\">" art "</a> - " q " шт\n")))
 
 (defn process-files [files ext heading err?]
-  (let [filtered-files (vec (filter-files files ext))
+  (let [filtered-files (vec (filter-files-ext files ext))
         freq-files (into [] (frequencies (map get-article filtered-files)))
         out (for [v freq-files]
               (create-art-link v heading))]

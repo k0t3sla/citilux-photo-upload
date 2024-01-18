@@ -7,17 +7,16 @@
                  [cheshire "5.11.0"]
                  [babashka/fs "0.2.16"]
                  [http-kit "2.7.0"]
-                 [metosin/reitit "0.3.9"]
-                 [ring/ring-defaults "0.3.2"]
+                 [metosin/reitit "0.3.9"] 
                  [mount/mount "0.1.17"]
                  [compojure "1.7.0"]
                  [hiccup "1.0.5"]
                  [schejulure "1.0.1"]
+                 ;;[org.clojure/core.async "1.6.681"]
                  
                  [clj-http "3.12.3"]
                  [net.mikera/imagez "0.12.0"] 
 
-                 [metosin/reitit "0.3.9"]
                  [ring/ring-defaults "0.3.2"]
 
                  [commons-io/commons-io "2.11.0"]

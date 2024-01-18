@@ -6,7 +6,6 @@
             [org.httpkit.server :as http]
             [hiccup.page :as hiccup]
             [hiccup.core :as h]
-            #_[schejulure.core :as cron]
             [reitit.ring :as ring]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
             [ring.util.response :as response]
@@ -72,16 +71,23 @@
       (fs/copy file (str arg path) {:replace-existing true}))
     (fs/delete-if-exists file)))
 
+(defn inlux? [s]
+  (string/starts-with? (get-article s) "IN"))
+
+(defn exist? [file articles]
+  (some #(= (get-article file) %) articles))
+
 (defn filter-files [{:keys [filter-errors? include-in? files]}]
-  (let [filtered (filter some?
-                         (for [file files]
-                           (let [article (get-article file)]
-                             (cond
-                               filter-errors? (when-not (some #{article} @all-articles) file)
-                               :else (when (some #{article} @all-articles) file)))))]
-    (if include-in?
-      (filter #(string/starts-with? (get-article %) "IN") filtered)
-      (filter #(not (string/starts-with? (get-article %) "IN")) filtered))))
+  (let [correct-arts (filter #(exist? % @all-articles) files)
+        not-correct-arts (filter #(not (exist? % @all-articles)) (filter (complement inlux?) files))
+        inlux (filter inlux? correct-arts)
+        not-inlux (filter (complement inlux?) correct-arts)
+        err-inlux (filter #(not (exist? % @all-articles)) (filter inlux? files))]
+    (cond
+      (and include-in? filter-errors?) err-inlux
+      filter-errors? not-correct-arts
+      include-in? inlux
+      :else not-inlux)))
 
 (defn upload-from-file [art-to-upload]
   (let [err-arts (vec (filter-files {:filter-errors? true :files art-to-upload}))
