@@ -183,8 +183,8 @@
             (do (copy-file file [(:out-source env)])
                 (move-and-compress file [(:out-web+1c env)]))
             (swap! err-fotos conj file))) 
-        (report-imgs-1c! (mapv get-article
-                               (remove #(contains? (set @err-fotos) %) (:hot-dir files)))))
+        (report-imgs-1c! (set (mapv get-article
+                                    (remove #(contains? (set @err-fotos) %) (:hot-dir files))))))
 
       (when (not-empty (:hot-dir-inlux files))
         (doseq [file (:hot-dir-inlux files)]
