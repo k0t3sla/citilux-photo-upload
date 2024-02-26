@@ -5,6 +5,7 @@
             [config.core :refer [env]]
             [org.httpkit.server :as http]
             [hiccup.page :as hiccup]
+            [cheshire.core :refer [generate-string]]
             [hiccup.core :as h]
             [reitit.ring :as ring]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
@@ -17,6 +18,8 @@
                                                 create-path
                                                 report-imgs-1c!
                                                 send-message!
+                                                article-stat-handler
+                                                general-stat-handler
                                                 get-all-articles]])
   (:gen-class))
 
@@ -366,6 +369,20 @@
      ["/upload"
       {:post (fn [request]
                (-> (upload-to-server request)
+                   (response/response)
+                   (response/header "content-type" "text/html")))}]
+     ["/mp-design-stat"
+      {:post (fn [_]
+               (-> (generate-string (general-stat-handler))
+                   (response/response)
+                   (response/header "content-type" "text/html")))}]
+     ["/mp-design-stat/:article"
+      {:post (fn [request]
+               (-> (-> request
+                       :path-params
+                       :article
+                       article-stat-handler
+                       generate-string)
                    (response/response)
                    (response/header "content-type" "text/html")))}]
      ["/update"
