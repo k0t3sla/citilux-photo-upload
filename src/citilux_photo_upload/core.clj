@@ -372,12 +372,12 @@
                    (response/response)
                    (response/header "content-type" "text/html")))}]
      ["/mp-design-stat"
-      {:post (fn [_]
+      {:get (fn [_]
                (-> (generate-string (general-stat-handler))
                    (response/response)
                    (response/header "content-type" "text/html")))}]
      ["/mp-design-stat/:article"
-      {:post (fn [request]
+      {:get (fn [request]
                (-> (-> request
                        :path-params
                        :article
