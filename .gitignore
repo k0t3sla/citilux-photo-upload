@@ -17,3 +17,4 @@ pom.xml.asc
 /node_modules/
 config-dev.edn
 config.edn
+resources/public/styles.css
