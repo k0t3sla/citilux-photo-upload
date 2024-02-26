@@ -375,7 +375,7 @@
       {:get (fn [_]
                (-> (generate-string (general-stat-handler))
                    (response/response)
-                   (response/header "content-type" "text/html")))}]
+                   (response/header "content-type" "application/json")))}]
      ["/mp-design-stat/:article"
       {:get (fn [request]
                (-> (-> request
@@ -384,7 +384,7 @@
                        article-stat-handler
                        generate-string)
                    (response/response)
-                   (response/header "content-type" "text/html")))}]
+                   (response/header "content-type" "application/json")))}]
      ["/update"
       {:post (fn [request]
                (-> (update-handler request)
