@@ -92,12 +92,16 @@
     {:path path :correct-dimm? (or (and (= w 2000) (or (= h 2000) (= h 2667)))
                                    false)}))
 
+(defn count-files-with-extension [file-list]
+  (->> file-list
+       (mapv #(peek (str/split % #"\.")))
+       frequencies))
 
 (defn get-stat-files [dir]
   (let [oz-path (str (:design env) dir)
         files (mapv str (fs/glob oz-path "**{.jpg,jpeg,png,mp4}"))
         file-groups (group-by get-article files)
-        data (mapv (fn [[k v]] [k (mapv fs/file-name v)]) file-groups)]
+        data (mapv (fn [[k v]] [k (count-files-with-extension v)]) file-groups)]
     (walk/keywordize-keys (into {} data))))
 
 (defn general-stat-handler []
