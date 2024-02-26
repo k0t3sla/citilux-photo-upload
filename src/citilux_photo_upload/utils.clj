@@ -3,6 +3,7 @@
             [clj-http.client :as client]
             [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
+            [clojure.walk :as walk]
             [mikera.image.core :as img]
             [clojure.string :as str])
   (:gen-class))
@@ -91,6 +92,21 @@
     {:path path :correct-dimm? (or (and (= w 2000) (or (= h 2000) (= h 2667)))
                                    false)}))
 
+
+(defn get-stat-files [dir]
+  (let [oz-path (str (:design env) dir)
+        files (mapv str (fs/glob oz-path "**{.jpg,jpeg,png,mp4}"))
+        file-groups (group-by get-article files)
+        data (mapv (fn [[k v]] [k (mapv fs/file-name v)]) file-groups)]
+    (walk/keywordize-keys (into {} data))))
+
+(defn general-stat-handler []
+  {:WB (get-stat-files "WB")
+   :OZ (get-stat-files "OZON")})
+
+(defn article-stat-handler [art]
+  {:WB ((keyword art) (get-stat-files "WB"))
+   :OZ ((keyword art) (get-stat-files "OZON"))})
 
 (comment
   (report-imgs-1c! (mapv get-article ["CL704320"
