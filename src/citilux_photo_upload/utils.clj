@@ -94,7 +94,7 @@
 
 (defn count-files-with-extension [file-list]
   (->> file-list
-       (mapv #(peek (str/split % #"\.")))
+       (mapv fs/extension)
        frequencies))
 
 (defn get-stat-files [dir]
