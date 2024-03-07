@@ -261,7 +261,7 @@
         err-files (concat (:err-files-inlux files) (:err-files files))]
     (hiccup/html5 
      [:body
-      [:head (hiccup/include-css "styles.css")]
+      [:head (hiccup/include-css "styles.css" "additional.css")]
       [:head (hiccup/include-js "htmx.js")]
       [:main {:class "container mx-auto grid grid-cols-2 gap-4"}
        [:div {:class "flex items-center justify-center"}
@@ -284,8 +284,8 @@
                        (:hot-dir files) (:hot-dir-inlux files) (:videos files) (:videos-inlux files)
                        (:hot-dir-wb files) (:hot-dir-wb-inlux files) (:videos_wb files) (:videos-inlux_wb files))) 0)
         [:div {:class "flex flex-col items-center pt-10"}
-         [:form {:method "POST" :action "/hot-dir-upload"}
-          [:button {:type "submit" :class "btn btn-primary btn-wide"} "Загрузить"]]])
+         [:button {:type "submit" :hx-post "/hot-dir-upload" :hx-swap "outerHTML" :class "btn btn-primary btn-wide"} "Загрузить"
+          [:img {:class "htmx-indicator" :src "https://htmx.org/img/bars.svg" :alt "Загрузка..."}]]])
       [:br]
       [:div {:class "divider"}]
       [:br]
@@ -296,19 +296,15 @@
 
 (defn hotdir-handler [_]
   (try (send-files!)
-       (hiccup/html5
-        [:body
-         [:head (hiccup/include-css "styles.css")]
-         [:div {:class "flex flex-col items-center pt-10"}
-          [:h1 "Фото сжаты, разложены по папкам и отпраленны на сервер"]
-          [:a {:href "/" :class "p-10 btn btn-success"} "Вернутся на главню"]]])
+       (-> (h/html
+            [:div {:class "flex flex-col items-center pt-10"}
+             [:h1 "Фото сжаты, разложены по папкам и отпраленны на сервер"]
+             [:a {:href "/" :class "p-10 btn btn-success"} "Обновить страницу"]]))
        (catch Exception e
-         (hiccup/html5
-          [:body
-           [:head (hiccup/include-css "styles.css")]
-           [:h1 "Что то пошло не так"]
-           [:h2 e]
-           [:a {:href "/"} "Вернутся на главню"]]))))
+         (-> (h/html
+              [:h1 "Что то пошло не так"]
+              [:h2 e]
+              [:a {:href "/"} "Обновить страницу"])))))
 
 (defn update-handler [_]
   (try (update-articles!)

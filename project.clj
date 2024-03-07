@@ -10,7 +10,7 @@
                  [metosin/reitit "0.3.9"] 
                  [mount/mount "0.1.17"]
                  [compojure "1.7.0"]
-                 [hiccup "1.0.5"]
+                 [hiccup "2.0.0-RC3"]
                  [schejulure "1.0.1"]
                  ;;[org.clojure/core.async "1.6.681"]
                  
