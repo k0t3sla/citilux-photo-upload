@@ -31,10 +31,12 @@
   [art]
   (str (subs art 0 3) delimiter (subs art 0 5) delimiter art delimiter))
 
-(defn get-article
-  "Тримаем, и получаем артикула без нижних подчеркиваний"
-  [file]
-  (str/trim (first (str/split (fs/file-name file) #"_(?!.*_)"))))
+(defn get-article [file]
+  (let [ext (fs/extension file)
+        exts #{"mp4" "png" "psd" "jpg" "jpeg"}]
+    (if (exts ext)
+      (subs file 0 (str/last-index-of file "_"))
+      file)))
 
 (defn filter-files-ext [files ext]
   (filter (fn [x]
