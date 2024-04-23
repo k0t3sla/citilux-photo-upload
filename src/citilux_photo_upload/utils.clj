@@ -119,6 +119,31 @@
   {:WB ((keyword art) (get-stat-files "WB"))
    :OZ ((keyword art) (get-stat-files "OZON"))})
 
+(defn inlux? [s]
+  (str/starts-with? (get-article s) "IN"))
+
+(defn exist? [file articles]
+  (some #(= (get-article file) %) articles))
+
+(defn copy-file [file args]
+  (let [name (fs/file-name file)
+        art (get-article name)
+        path (str (create-path art) name)]
+    (doseq [arg args]
+      (fs/create-dirs (str arg (create-path art)))
+      (fs/copy file (str arg path) {:replace-existing true}))))
+
+(defn move-file [file args]
+  (let [name (fs/file-name file)
+        art (get-article name)
+        path (str (create-path art) name)]
+    (doseq [arg args]
+      (fs/create-dirs (str arg (create-path art)))
+      (fs/copy file (str arg path) {:replace-existing true}))
+    (fs/delete-if-exists file)))
+
+
+
 (comment
   (report-imgs-1c! (mapv get-article ["CL704320"
                                       "CL704330"

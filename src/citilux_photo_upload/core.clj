@@ -6,12 +6,16 @@
             [org.httpkit.server :as http]
             [hiccup.page :as hiccup]
             [cheshire.core :refer [generate-string]]
-            [hiccup.core :as h]
+            [hiccup2.core :as h]
             [reitit.ring :as ring]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
             [ring.util.response :as response]
             [citilux-photo-upload.upload :refer [upload-fotos]]
             [citilux-photo-upload.utils :refer [notify!
+                                                inlux?
+                                                exist?
+                                                copy-file
+                                                move-file
                                                 check-dimm 
                                                 delimiter
                                                 get-article
@@ -24,6 +28,7 @@
   (:gen-class))
 
 (set! *warn-on-reflection* true)
+(def blocked (atom false))
 
 (def all-articles (atom []))
 (defn update-articles! []
@@ -56,29 +61,6 @@
         (fs/copy file (str arg path) {:replace-existing true})))
     (fs/delete-if-exists file)
     (fs/delete-if-exists tmp-path)))
-
-(defn copy-file [file args]
-  (let [name (fs/file-name file)
-        art (get-article name)
-        path (str (create-path art) name)]
-    (doseq [arg args]
-      (fs/create-dirs (str arg (create-path art)))
-      (fs/copy file (str arg path) {:replace-existing true}))))
-
-(defn move-file [file args]
-  (let [name (fs/file-name file)
-        art (get-article name)
-        path (str (create-path art) name)]
-    (doseq [arg args]
-      (fs/create-dirs (str arg (create-path art)))
-      (fs/copy file (str arg path) {:replace-existing true}))
-    (fs/delete-if-exists file)))
-
-(defn inlux? [s]
-  (string/starts-with? (get-article s) "IN"))
-
-(defn exist? [file articles]
-  (some #(= (get-article file) %) articles))
 
 (defn filter-files [{:keys [filter-errors? include-in? files]}]
   (let [correct-arts (filter #(exist? % @all-articles) files)
@@ -295,24 +277,39 @@
       [:div {:class "flex flex-col items-center pt-10"} [:button {:hx-post "/update" :hx-swap "outerHTML" :class "btn btn-success"} "Обновить список артикулов из 1с"]]])))
 
 (defn hotdir-handler [_]
-  (try (send-files!)
-       (-> (h/html
-            [:div {:class "flex flex-col items-center pt-10"}
-             [:h1 "Фото сжаты, разложены по папкам и отпраленны на сервер"]
-             [:a {:href "/" :class "p-10 btn btn-success"} "Обновить страницу"]]))
-       (catch Exception e
-         (-> (h/html
-              [:h1 "Что то пошло не так"]
-              [:h2 e]
-              [:a {:href "/"} "Обновить страницу"])))))
+  (try
+    (if (true? @blocked)
+      (-> (h/html
+           [:div {:class "flex flex-col items-center pt-10"}
+            [:h1 "Фото Загружаются кем то другим, подождите пару минут и повторите попытку"]
+            [:a {:href "/" :class "p-10 btn btn-success"} "Обновить страницу"]])
+          str)
+      (do
+        (swap! blocked (constantly true))
+        (send-files!)
+        (swap! blocked (constantly false))
+        (-> (h/html
+             [:div {:class "flex flex-col items-center pt-10"}
+              [:h1 "Фото сжаты, разложены по папкам и отпраленны на сервер"]
+              [:a {:href "/" :class "p-10 btn btn-success"} "Обновить страницу"]])
+            str)))
+    
+    (catch Exception e
+      (swap! blocked (constantly false))
+      (-> (h/html
+           [:h1 "Что то пошло не так"]
+           [:h2 e]
+           [:a {:href "/"} "Обновить страницу"])
+          str))))
 
 (defn update-handler [_]
   (try (update-articles!)
-       (h/html
-        [:h2 "Успешно обновлен список артикулов"])
+       (str
+        (h/html
+         [:h2 "Успешно обновлен список артикулов"]))
        (catch Exception e
-         [:h2 "Ошибка"]
-         [:h3 e])))
+         (str [:h2 "Ошибка"]
+              [:h3 e]))))
 
 (defn upload-to-server [request]
   (let [params (-> request
@@ -418,9 +415,6 @@
   [& args]
   (update-articles!)
   (if args
-    #_(do (cron/schedule {:hour (range 0 24)} update-articles!)
-        (start-server))
-    ;;
     (start-server)
     (let [file-to-upload (string/split-lines (slurp "to-upload.txt"))]
       (if (not= file-to-upload [""])
