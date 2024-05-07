@@ -20,6 +20,7 @@
                                                 delimiter
                                                 get-article
                                                 create-path
+                                                split-articles
                                                 report-imgs-1c!
                                                 send-message!
                                                 article-stat-handler
@@ -290,7 +291,7 @@
         (swap! blocked (constantly false))
         (-> (h/html
              [:div {:class "flex flex-col items-center pt-10"}
-              [:h1 "Фото сжаты, разложены по папкам и отпраленны на сервер"]
+              [:h1 "Фото сжаты, разложены по папкам и отправлены на сервер"]
               [:a {:href "/" :class "p-10 btn btn-success"} "Обновить страницу"]])
             str)))
     
@@ -315,8 +316,9 @@
   (let [params (-> request
                    :params
                    :arts
-                   (string/split #","))
+                   split-articles)
         arts (mapv string/trim params)
+        _ (println "arts: " arts)
         err (filter-files {:filter-errors? true :files arts})
         correct (filter-files {:files arts})]
     (try (upload-from-file correct)
@@ -331,7 +333,7 @@
                       [:li art])]])
             (when (> (count err) 0)
               [:div {:class "flex flex-col items-center pt-10"}
-               [:p "Артикула введеные с ошибками"]
+               [:p "Артикула введенные с ошибками"]
                [:ul
                 (for [e err]
                   [:li e])]])]

@@ -143,6 +143,8 @@
     (fs/delete-if-exists file)))
 
 
+(defn split-articles [^String s]
+  (filter #(not (str/blank? %)) (str/split s #",|\n|\t")))
 
 (comment
   (report-imgs-1c! (mapv get-article ["CL704320"
