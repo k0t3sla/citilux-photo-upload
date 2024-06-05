@@ -225,8 +225,8 @@
                                    :err? true})))
 
     (catch Exception e
-      (send-message! (str "caught exception: " (.getMessage e)))
-      (println (str "caught exception: " (.getMessage e))))))
+      (send-message! (str "caught exception send-message!: " (.getMessage e)))
+      (println (str "caught exception send-message!: " (.getMessage e))))))
 
 (defn display-files [{:keys [files heading when-empty]}]
   [:div

@@ -31,6 +31,6 @@
                              :insecure true
                              :content-type :json
                              :conn-timeout 300000})
-               (catch Exception e (send-message! (str "caught exception: " (.getMessage e)))))]
+               (catch Exception e (send-message! (str "Ошибка при загрузке фото из WEB+1C на сервер: " (.getMessage e)))))]
     (when (not= (:status resp) 200)
       (send-message! (str "проблемы при загрузке фотографий - " art " status = " (:status resp))))))
