@@ -147,7 +147,96 @@
   (filter #(not (str/blank? %)) (str/split s #",|\n|\t")))
 
 (comment
-  (report-imgs-1c! (mapv get-article ["CL704320"
-                                      "CL704330"
-                                      "CL704340"
-                                      "CL704341"])))
+
+
+
+  ;;;; DIR GENERATOR
+
+  (def dirs [["0_TEST_REPORTS" "C" "01_PRODUCTION_FILES"]
+             ["01_3D"	"C" "01_PRODUCTION_FILES"]
+             ["01_ABRIS"	"A" "01_PRODUCTION_FILES"]
+             ["02_BOX"	"C" "01_PRODUCTION_FILES"]
+             ["02_LABELS"	"A" "01_PRODUCTION_FILES"]
+             ["02_MASTER_LABELS"	"C" "01_PRODUCTION_FILES"]
+             ["03_ASSEMBLY"	"A" "01_PRODUCTION_FILES"]
+             ["03_MANUAL"	"A" "01_PRODUCTION_FILES"]
+             ["04_OTHER"	"C" "01_PRODUCTION_FILES"]
+             ["02_BANK_PHOTO"	"A"]
+             ["02_BANK_VIDEO_SHORTS"	"A"]
+             ["03_MAKET_VERSTKI"	"A"]
+             ["03_PHOTO_PNG"	"A"]
+             ["03_PHOTO_PSD_ RGB"	"A"]
+             ["03_SOURCE_1_1"	"A"]
+             ["03_SOURCE_3_4"	"A"]
+             ["04_SKU_1C"	"A"]
+             ["04_SKU_PNG_WHITE"	"A"]
+             ["04_SKU_3D_FOR_DESIGNERS"	"A"]
+             ["04_SKU_EXTERNAL_1_1"	"A"]
+             ["04_SKU_EXTERNAL_3_4"	"A"]
+             ["04_SKU_INTERNAL_1_1"	"A"]
+             ["04_SKU_INTERNAL_3_4"	"A"]
+             ["04_SKU_VIDEO_SHORTS"	"A"]
+             ["01_MAIL"	"C" "05_COLLECTIONS_ADV"]
+             ["02_NEWS"	"C" "05_COLLECTIONS_ADV"]
+             ["03_SMM"	"C" "05_COLLECTIONS_ADV"]
+             ["05_COLLECTIONS_BANNERS" "C"]
+             ["05_COLLECTIONS_VIDEO"	"C"]
+             ["05_COLLECTIONS_WEB_BANNERS" "C"]])
+
+
+  (defn check-prod [art]
+    (if (re-matches #"\d{3}" (subs art 0 3))
+      false
+      true))
+
+  (defn create-path-art
+    "Создание пути для сохранения, первые 3, 5 или весь артикул"
+    ([art type]
+     (let [art-len (count art)]
+       (str (subs art 0 (min 3 art-len)) '/
+            (subs art 0 (min 5 art-len)) '/
+            (when (= type "A")
+              (str art '/))))))
+
+
+  (create-path-art "CL123456" "C")
+
+  (def prod-list (filter check-prod (get-all-articles)))
+  (def plafons (filter (complement check-prod) (get-all-articles)))
+
+  (def in (filter #(str/starts-with? % "IN") prod-list))
+  (def cl (filter #(str/starts-with? % "CL") prod-list))
+  (def el (filter #(str/starts-with? % "EL") prod-list))
+
+  (doseq [d dirs]
+    (doseq [a plafons]
+      (fs/create-dirs (str "/home/li/TEMP/ACCESSORIES/" (when (= (count d) 3) (last d)) "/"
+                           (first d) "/"
+                           (create-path-art a (second d))))))
+
+  (doseq [d dirs]
+    (doseq [a el]
+      (fs/create-dirs (str "/home/li/TEMP/ELETTO/" (when (= (count d) 3) (last d)) "/"
+                           (first d) "/"
+                           (create-path-art a (second d))))))
+
+  (doseq [d dirs]
+    (doseq [a in]
+      (fs/create-dirs (str "/home/li/TEMP/INLUX/" (when (= (count d) 3) (last d)) "/"
+                           (first d) "/"
+                           (create-path-art a (second d))))))
+
+  (doseq [d dirs]
+    (doseq [a cl]
+      (fs/create-dirs (str "/home/li/TEMP/CITILUX/" (when (= (count d) 3) (last d)) "/"
+                           (first d) "/"
+                           (create-path-art a (second d))))))
+
+
+
+
+  )
+             
+             
+
+
