@@ -15,33 +15,92 @@
     :headers {"Content-Type" "application/json"
               "Accept" "application/json"}}))
 
-(def delimiter
-  "разделитель в зависимости от ос для создания пути"
-  (if (fs/windows?)
-    (str "\\")
-    (str "/")))
-
 (defn parse-resp [resp]
   (str/split (apply str (->> resp
                              (drop 4)
                              (drop-last 4))) #"\\\",\\\""))
 
-(defn create-path
-  "Созание пути для сохранения, первые 3 ,5 весь артикул"
-  [art]
-  (str (subs art 0 3) delimiter (subs art 0 5) delimiter art delimiter))
-
-#_(defn get-article [file]
-  (let [ext (fs/extension file)
-        exts #{"mp4" "png" "psd" "jpg" "jpeg"}]
-    (if (exts ext)
-      (subs file 0 (str/last-index-of file "_"))
-      file)))
-
 (defn get-article
-  "Тримаем, и получаем артикула без нижних подчеркиваний"
+  "Get the article code before the first underscore"
   [file]
-  (str/trim (first (str/split (fs/file-name file) #"_(?!.*_)"))))
+  (first (str/split (fs/file-name file) #"_")))
+
+(defn create-path
+  "Создание пути для сохранения, первые 3, 5 или весь артикул"
+  ([file-name]
+   (let [adv (cond 
+               (str/includes? file-name "_SMM_") "05_COLLECTIONS_ADV/03_SMM/"
+               (str/includes? file-name "_BANNERS_") "05_COLLECTIONS_BANNERS/"
+               (str/includes? file-name "_WEBBANNERS_") "05_COLLECTIONS_WEB_BANNERS/"
+               (str/includes? file-name "_NEWS_") "05_COLLECTIONS_ADV/02_NEWS/"
+               (str/includes? file-name "_MAIL_") "05_COLLECTIONS_ADV/01_MAIL/")
+         all (when (str/includes? file-name "_ALL_") true)
+         art (get-article file-name)
+         art-len (count art)
+         first-2 (subs art 0 2)
+         _ (println "art" art "art-len" art-len "first-2" first-2 "adv" adv "all" all)
+         brand (cond
+                 (= first-2 "CL") "CITILUX"
+                 (= first-2 "EL") "ELETTO"
+                 (= first-2 "IN") "INLUX"
+                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")] 
+     (str
+      (:out-dir env)
+      brand '/
+      (when adv adv)
+      (subs art 0 (min 3 art-len)) '/
+      (subs art 0 (min 5 art-len)) '/
+      (when-not all (str art '/))))))
+
+(defn create-path-with-root
+  "Создание пути для сохранения, первые 3, 5 или весь артикул"
+  ([file-name dir-to-save]
+   (let [art (get-article file-name)
+         art-len (count art)
+         first-2 (subs art 0 2)
+         brand (cond
+                 (= first-2 "CL") "CITILUX"
+                 (= first-2 "EL") "ELETTO"
+                 (= first-2 "IN") "INLUX"
+                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")]
+     (str brand '/
+          dir-to-save
+          (subs art 0 (min 3 art-len)) '/
+          (subs art 0 (min 5 art-len)) '/
+          art '/))))
+
+
+(defn get-dimm [^String path]
+  (let [img (img/load-image path)
+        ^int w (try
+                 (img/width img)
+                 (catch Exception e (.getMessage e)))
+        ^int h (try
+                 (img/height img)
+                 (catch Exception e (.getMessage e)))]
+    (if (and (= w 2000) (= h 2000))
+      "1x1"
+      "3x4")))
+
+(defn create-path-dimm
+  "Создание пути для сохранения, первые 3, 5 или весь артикул"
+  ([file]
+   (let [art-len (count file) 
+         art (get-article file)
+         first-2 (subs art 0 2)
+         dimm (get-dimm file)
+         brand (cond
+                 (= first-2 "CL") "CITILUX"
+                 (= first-2 "EL") "ELETTO"
+                 (= first-2 "IN") "INLUX"
+                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")]
+     (str brand '/
+          (if (= dimm "1x1")
+            "04_SKU_INTERNAL_1_1/"
+            "04_SKU_INTERNAL_3_4/")
+          (subs art 0 (min 3 art-len)) '/
+          (subs art 0 (min 5 art-len)) '/
+          art '/))))
 
 (defn filter-files-ext [files ext]
   (filter (fn [x]
@@ -96,8 +155,8 @@
         ^int h (try
                  (img/height img)
                  (catch Exception e (.getMessage e)))]
-    {:path path :correct-dimm? (or (and (= w 2000) (or (= h 2000) (= h 2667)))
-                                   false)}))
+    (or (and (= w 2000) (or (= h 2000) (= h 2667)))
+        false)))
 
 (defn count-files-with-extension [file-list]
   (->> file-list
@@ -106,7 +165,7 @@
 
 (defn get-stat-files [dir]
   (let [oz-path (str (:design env) dir)
-        files (mapv str (fs/glob oz-path "**{.jpg,jpeg,png,mp4}"))
+        files (mapv str (fs/glob oz-path "**{.jpg,jpeg,png}"))
         file-groups (group-by get-article files)
         data (mapv (fn [[k v]] [k (count-files-with-extension v)]) file-groups)]
     (walk/keywordize-keys (into {} data))))
@@ -119,27 +178,36 @@
   {:WB ((keyword art) (get-stat-files "WB"))
    :OZ ((keyword art) (get-stat-files "OZON"))})
 
-(defn inlux? [s]
-  (str/starts-with? (get-article s) "IN"))
-
 (defn exist? [file articles]
   (some #(= (get-article file) %) articles))
 
-(defn copy-file [file args]
+(defn copy-file 
+  "on input filepath"
+  [^String file]
   (let [name (fs/file-name file)
-        art (get-article name)
-        path (str (create-path art) name)]
-    (doseq [arg args]
-      (fs/create-dirs (str arg (create-path art)))
-      (fs/copy file (str arg path) {:replace-existing true}))))
+        art (get-article name)]
+    (fs/create-dirs (create-path art))
+    (fs/copy file (create-path art) {:replace-existing true})))
 
-(defn move-file [file args]
-  (let [name (fs/file-name file)
-        art (get-article name)
-        path (str (create-path art) name)]
-    (doseq [arg args]
-      (fs/create-dirs (str arg (create-path art)))
-      (fs/copy file (str arg path) {:replace-existing true}))
+(defn copy-abris
+  "on input filepath"
+  [^String file]
+  (let [file-name (fs/file-name file)
+        art (get-article file-name)]
+    (fs/create-dirs (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/"))
+    (fs/copy file (create-path art) {:replace-existing true})
+    (fs/copy file (str (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/") file-name) {:replace-existing true})
+    (fs/delete-if-exists file)))
+
+(defn move-file
+  "on input filepath"
+  [^String file]
+  (let [file-name (fs/file-name file)
+        path (str (create-path file) file-name)
+        _ (println path)
+        _ (println file)]
+    (fs/create-dirs (create-path file-name))
+    (fs/copy file path {:replace-existing true})
     (fs/delete-if-exists file)))
 
 

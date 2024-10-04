@@ -16,7 +16,7 @@
 (defn upload-fotos
   "Грузим фото на сервер в base64"
   [art]
-  (let [files (sort (mapv str (fs/glob (str (:out-web+1c env) (create-path art)) "**{.jpeg,jpg}")))
+  (let [files (sort (mapv str (fs/glob (str (:out-path env) (create-path art)) "**{.jpeg,jpg}")))
         detail-foto (when (> (count files) 0)
                       (encode64 (first files)))
         encoded-fotos (when (> (count files) 1) ;; остальные фото исключая детальную
