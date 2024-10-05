@@ -27,8 +27,9 @@
 
 (defn create-path
   "Создание пути для сохранения, первые 3, 5 или весь артикул"
-  ([file-name]
-   (let [adv (cond 
+  ([file-path]
+   (let [file-name (fs/file-name file-path)
+         adv (cond 
                (str/includes? file-name "_SMM_") "05_COLLECTIONS_ADV/03_SMM/"
                (str/includes? file-name "_BANNERS_") "05_COLLECTIONS_BANNERS/"
                (str/includes? file-name "_WEBBANNERS_") "05_COLLECTIONS_WEB_BANNERS/"
@@ -38,37 +39,38 @@
          art (get-article file-name)
          art-len (count art)
          first-2 (subs art 0 2)
-         _ (println "art" art "art-len" art-len "first-2" first-2 "adv" adv "all" all)
          brand (cond
                  (= first-2 "CL") "CITILUX"
                  (= first-2 "EL") "ELETTO"
                  (= first-2 "IN") "INLUX"
-                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")] 
-     (str
-      (:out-dir env)
-      brand '/
-      (when adv adv)
-      (subs art 0 (min 3 art-len)) '/
-      (subs art 0 (min 5 art-len)) '/
-      (when-not all (str art '/))))))
+                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")
+         out-path (str
+                   (:out-dir env)
+                   brand '/
+                   (when adv adv)
+                   (subs art 0 (min 3 art-len)) '/
+                   (subs art 0 (min 5 art-len)) '/
+                   (when-not all (str art '/)))]
+     out-path)))
 
 (defn create-path-with-root
   "Создание пути для сохранения, первые 3, 5 или весь артикул"
-  ([file-name dir-to-save]
-   (let [art (get-article file-name)
+  ([file-path dir-to-save]
+   (let [art (get-article (fs/file-name file-path))
          art-len (count art)
          first-2 (subs art 0 2)
          brand (cond
                  (= first-2 "CL") "CITILUX"
                  (= first-2 "EL") "ELETTO"
                  (= first-2 "IN") "INLUX"
-                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")]
-     (str (:out-dir env)
-      brand '/
-      dir-to-save
-      (subs art 0 (min 3 art-len)) '/
-      (subs art 0 (min 5 art-len)) '/
-      art '/))))
+                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")
+         out-path (str (:out-dir env)
+                       brand '/
+                       dir-to-save
+                       (subs art 0 (min 3 art-len)) '/
+                       (subs art 0 (min 5 art-len)) '/
+                       art '/)]
+     out-path)))
 
 
 (defn get-dimm [^String path]
@@ -86,7 +88,7 @@
 (defn create-path-dimm
   "Создание пути для сохранения, первые 3, 5 или весь артикул"
   ([file]
-   (let [art-len (count file) 
+   (let [art-len (count file)
          art (get-article file)
          first-2 (subs art 0 2)
          dimm (get-dimm file)
@@ -94,14 +96,39 @@
                  (= first-2 "CL") "CITILUX"
                  (= first-2 "EL") "ELETTO"
                  (= first-2 "IN") "INLUX"
-                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")]
-     (str brand '/
-          (if (= dimm "1x1")
-            "04_SKU_INTERNAL_1_1/"
-            "04_SKU_INTERNAL_3_4/")
-          (subs art 0 (min 3 art-len)) '/
-          (subs art 0 (min 5 art-len)) '/
-          art '/))))
+                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")
+         out-path (str brand '/
+                       (if (= dimm "1x1")
+                         "04_SKU_INTERNAL_1_1/"
+                         "04_SKU_INTERNAL_3_4/")
+                       (subs art 0 (min 3 art-len)) '/
+                       (subs art 0 (min 5 art-len)) '/
+                       art '/)]
+     out-path)))
+
+(defn create-path-dimm-source
+  "Создание пути для сохранения, первые 3, 5 или весь артикул"
+  ([file]
+   (let [art-len (count file)
+         art (get-article file)
+         first-2 (subs art 0 2)
+         dimm (get-dimm file)
+         brand (cond
+                 (= first-2 "CL") "CITILUX"
+                 (= first-2 "EL") "ELETTO"
+                 (= first-2 "IN") "INLUX"
+                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")
+         out-path (str
+                   (:out-dir env)
+                   brand '/
+                   (if (= dimm "1x1")
+                     "03_SOURCE_1_1/"
+                     "03_SOURCE_3_4/")
+                   (subs art 0 (min 3 art-len)) '/
+                   (subs art 0 (min 5 art-len)) '/
+                   art '/)]
+     (fs/create-dirs out-path)
+     out-path)))
 
 (defn filter-files-ext [files ext]
   (filter (fn [x]
@@ -205,19 +232,29 @@
   "on input filepath"
   [^String file]
   (let [file-name (fs/file-name file)
-        art (get-article file-name)]
-    (fs/create-dirs (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/"))
-    (fs/copy file (create-path art) {:replace-existing true})
-    (fs/copy file (str (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/") file-name) {:replace-existing true})
+        art (get-article file-name)
+        path-to-input (str (:hot-dir env) file-name)
+        path-todir (str (:out-dir env) (create-path-dimm path-to-input))
+        path-todir-abris (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/")
+        _ (println "path-todir-abris " path-todir-abris)
+        _ (println "path-todir " path-todir)
+        _ (fs/create-dirs path-todir)
+        _ (fs/create-dirs path-todir-abris)
+        out-internal (str path-todir file-name)
+        out-abris (str path-todir-abris file-name)]
+    (fs/copy file out-internal {:replace-existing true})
+    (fs/copy file out-abris {:replace-existing true})
     (fs/delete-if-exists file)))
+
+(comment
+  (copy-abris "/home/k0t3sla/TMP/HOT_DIR/CL237B310_31.jpg")
+  )
 
 (defn move-file
   "on input filepath"
   [^String file]
   (let [file-name (fs/file-name file)
-        path (str (create-path file) file-name)
-        _ (println path)
-        _ (println file)]
+        path (str (create-path file) file-name)]
     (fs/create-dirs (create-path file-name))
     (fs/copy file path {:replace-existing true})
     (fs/delete-if-exists file)))
@@ -316,7 +353,5 @@
 
 
   )
-             
-             
 
 

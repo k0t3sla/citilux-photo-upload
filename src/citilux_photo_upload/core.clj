@@ -29,12 +29,14 @@
                                                 copy-file
                                                 move-file
                                                 create-path-dimm
+                                                create-path-with-root
                                                 check-dimm
                                                 copy-abris
                                                 get-article
                                                 split-articles
                                                 notify-msg-create
                                                 report-imgs-1c!
+                                                create-path-dimm-source
                                                 send-message!
                                                 article-stat-handler
                                                 general-stat-handler
@@ -96,7 +98,7 @@
         BANNERS_ALL  (filterv valid-file-name-BANNERS_ALL? hotdir-files)
         WEBBANNERS_ALL  (filterv valid-file-name-WEBBANNERS_ALL? hotdir-files)
         MAIL_ALL  (filterv valid-file-name-MAIL_ALL? hotdir-files)
-        to-upload (set (mapv get-article (filter valid-regular-file-name? hotdir-files)))
+        to-upload (set (mapv get-article (filter valid-regular-file-name? regular-hot-dir)))
         all-valid (concat regular-hot-dir SMM BANNERS WEBBANNERS NEWS MAIL SMM_ALL BANNERS_ALL WEBBANNERS_ALL MAIL_ALL abris white)]
     {:err-files (vec (remove #(contains? (set all-valid) %) hotdir-files))
      :to-upload to-upload
@@ -114,17 +116,6 @@
      :all-valid all-valid
      :regular-hot-dir regular-hot-dir}))
 
-(defn rp
-  "retun root path for file"
-  [file-name]
-  (str (:hot-dir env) file-name))
-
-(defn move-multiple [key files heading]
-  (when (not-empty ((keyword key) files))
-    (doseq [file ((keyword key) files)]
-      (move-file file))
-    (notify! {:files ((keyword key) files) :heading heading})))
-
 (def message-log (atom []))
 (defn add-to-message-log! [message]
   (swap! message-log conj message))
@@ -135,15 +126,21 @@
     (let [files (get-files)
           err-fotos (atom [])]
 
+      (when (not-empty (:abris files))
+        (doseq [file (:abris files)]
+          (copy-abris file))
+        (add-to-message-log! (notify-msg-create {:files (:white files) :heading "В папку 01_PRODUCTION_FILES/01_ABRIS/\n"})))
+
       (when (not-empty (:regular-hot-dir files))
         (doseq [file (:regular-hot-dir files)]
           (if (check-dimm file)
-            (do (copy-file file)
-                (move-and-compress file))
+            (do (fs/copy file (create-path-dimm-source file) {:replace-existing true})
+             (move-and-compress file))
             (swap! err-fotos conj file)))
         (add-to-message-log! (notify-msg-create {:files (:regular-hot-dir files) :heading "Загружены фото в папку\n"}))
-        #_(report-imgs-1c! (set (mapv get-article
-                                      (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files))))))
+        (when-not (:debug env)
+          (report-imgs-1c! (set (mapv get-article
+                                      (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files)))))))
 
       (when (not-empty (:smm files))
         (doseq [file (:smm files)]
@@ -179,7 +176,7 @@
         (doseq [file (:webbanners-ALL files)]
           (move-file file))
         (add-to-message-log! (notify-msg-create {:files (:webbanners-ALL files) :heading "В папку 05_COLLECTIONS_WEB_BANNERS\n"})))
-      
+
       (when (not-empty (:webbanners files))
         (doseq [file (:webbanners files)]
           (move-file file))
@@ -193,13 +190,10 @@
 
       (when (not-empty (:white files))
         (doseq [file (:white files)]
-          (move-file file))
-        (add-to-message-log! (notify-msg-create {:files (:white files) :heading "В папку 04_SKU_PNG_WHITE\n"})))
-
-
-      (when (not-empty (:abris files))
-        (doseq [file (:abris files)]
-          (copy-abris file))
+          (let [path (create-path-with-root file "04_SKU_PNG_WHITE/")]
+            (fs/create-dirs path)
+            (fs/copy file path {:replace-existing true})
+            (fs/delete-if-exists file)))
         (add-to-message-log! (notify-msg-create {:files (:white files) :heading "В папку 04_SKU_PNG_WHITE\n"})))
 
       (when (not-empty (:err-files files))
@@ -213,7 +207,8 @@
         (do
           (doseq [art (:to-upload files)]
             (try
-              #_(upload-fotos art)
+              (when-not (:debug env)
+                (upload-fotos art))
               (println (str "upload " art " to server"))
               (catch Exception e (send-message! (str "upload on server caught exception: " (.getMessage e))))))
           (when (not-empty (:to-upload files)) (notify! {:files (:to-upload files)})))
@@ -416,59 +411,17 @@
   (stop-server)
 
 
+  (copy-abris (first (:abris (get-files))))
+  
+  (first (:abris (get-files)))
 
-  (def files
-    {:abris [],
-     :err-files
-     ["/home/li/TEMP/HOT_DIR/CL723330G_.jpg"
-      "/home/li/TEMP/HOT_DIR/CL723_MAIL_ALL_.jpg"
-      "/home/li/TEMP/HOT_DIR/CL723_NEWS_ALL_1.jpg"],
-     :white ["/home/li/TEMP/HOT_DIR/CL723330G_00.jpg"],
-     :banners ["/home/li/TEMP/HOT_DIR/CL723330G_BANNERS_1.jpg"],
-     :mail ["/home/li/TEMP/HOT_DIR/CL723330G_MAIL_1.jpg"],
-     :smm ["/home/li/TEMP/HOT_DIR/CL723330G_SMM_1.jpg"],
-     :webbanners ["/home/li/TEMP/HOT_DIR/CL723330G_WEBBANNERS_1.jpg"],
-     :smm-ALL ["/home/li/TEMP/HOT_DIR/CL723_SMM_ALL_1.jpg"],
-     :to-upload #{"CL723330G"},
-     :mail-ALL ["/home/li/TEMP/HOT_DIR/CL723_MAIL_ALL_1.jpg"],
-     :banners-ALL ["/home/li/TEMP/HOT_DIR/CL723_BANNERS_ALL_1.jpg"],
-     :webbanners-ALL ["/home/li/TEMP/HOT_DIR/CL723_WEBBANNERS_ALL_1.jpg"],
-     :news ["/home/li/TEMP/HOT_DIR/CL723330G_NEWS_1.jpg"],
-     :regular-hot-dir []})
-
-  (when (not-empty (:smm files))
-    (doseq [file (:smm files)]
-      (move-file file))
-    (notify! {:files (:smm files) :heading "TESR"}))
-
-  (move-multiple "smm" (:smm files) "В папку СММ\n")
-  (move-multiple "banners" (:banners files) "В папку 05_COLLECTIONS_BANNERS\n")
-  (move-multiple "webbanners" (:webbanners files) "В папку 05_COLLECTIONS_WEB_BANNERS\n")
-  (move-multiple "news" (:news files) "В папку 05_COLLECTIONS_ADV\\02_NEWS\n")
-  (move-multiple "mail" (:mail files) "В папку 05_COLLECTIONS_ADV\\01_MAIL\n")
-  (move-multiple "smm-ALL" (:smm-ALL files) "В папку 05_COLLECTIONS_ADV\\03_SMM\n")
-  (move-multiple "banners-ALL" (:banners-ALL files) "В папку 05_COLLECTIONS_BANNERS\n")
-  (move-multiple "webbanners-ALL" (:webbanners-ALL files) "В папку 05_COLLECTIONS_WEB_BANNERS\n")
-  (move-multiple "mail-ALL" (:mail-ALL files) "В папку 05_COLLECTIONS_ADV\\01_MAIL\n")
-  (move-multiple "white" (:white files) "В папку 04_SKU_PNG_WHITE\n")
-  (when (not-empty (:abris files))
-    (doseq [file (:abris files)]
-      (copy-abris file)))
+  (create-path-with-root "/home/k0t3sla/TMP/HOT_DIR/CL237B310_00.jpg" "04_SKU_PNG_WHITE/")
+  
+  (copy-abris "/home/k0t3sla/TMP/HOT_DIR/CL237B310_31.jpg")
 
 
 
 
-  (defn move-multiple [key files heading])
 
 
-  (move-file "/home/li/TEMP/HOT_DIR/CL723330G_SMM_1.jpg")
-
-  #_(when (not-empty ((keyword key) files))
-      ((keyword key) files)
-      #_(doseq [file ((keyword key) files)]
-          (move-file file))
-      #_(notify! {:files ((keyword key) files) :heading heading}))
-
-
-
-)
+  )
