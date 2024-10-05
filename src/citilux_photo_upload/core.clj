@@ -395,12 +395,12 @@
     (reset! server nil)))
 
 (defn start-server []
-  (println "starting http.kit server http://localhost:8080/")
+  (println "starting http.kit server http://localhost:8081/")
   (reset! server (http/run-server
                   (wrap-defaults
                    handler
                    (assoc api-defaults :static {:resources "public"}))
-                  {:port 8080})))
+                  {:port 8081})))
 
 (defn -main
   []
