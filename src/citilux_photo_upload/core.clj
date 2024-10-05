@@ -25,7 +25,6 @@
                      check-abris?
                      white?]]
             [citilux-photo-upload.utils :refer [notify!
-                                                inlux?
                                                 exist?
                                                 copy-file
                                                 move-file
@@ -34,6 +33,7 @@
                                                 copy-abris
                                                 get-article
                                                 split-articles
+                                                notify-msg-create
                                                 report-imgs-1c!
                                                 send-message!
                                                 article-stat-handler
@@ -62,7 +62,7 @@
         path (str (:out-dir env) (create-path-dimm file))]
     (println ratio)
     (if (< ratio 0.9)
-      (do 
+      (do
         (fs/create-dirs path)
         (println "comprassing and moving")
         (println path)
@@ -111,11 +111,12 @@
      :mail-ALL MAIL_ALL
      :abris abris
      :white white
+     :all-valid all-valid
      :regular-hot-dir regular-hot-dir}))
 
 (defn rp
   "retun root path for file"
-  [file-name] 
+  [file-name]
   (str (:hot-dir env) file-name))
 
 (defn move-multiple [key files heading]
@@ -123,6 +124,10 @@
     (doseq [file ((keyword key) files)]
       (move-file file))
     (notify! {:files ((keyword key) files) :heading heading})))
+
+(def message-log (atom []))
+(defn add-to-message-log! [message]
+  (swap! message-log conj message))
 
 (defn send-files!
   []
@@ -136,25 +141,67 @@
             (do (copy-file file)
                 (move-and-compress file))
             (swap! err-fotos conj file)))
-        (report-imgs-1c! (set (mapv get-article
-                                    (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files))))))
+        (add-to-message-log! (notify-msg-create {:files (:regular-hot-dir files) :heading "Загружены фото в папку\n"}))
+        #_(report-imgs-1c! (set (mapv get-article
+                                      (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files))))))
 
-      (move-multiple :smm (:smm files) "В папку СММ\n")
-      (move-multiple :banners (:banners files) "В папку 05_COLLECTIONS_BANNERS\n")
-      (move-multiple :webbanners (:webbanners files) "В папку 05_COLLECTIONS_WEB_BANNERS\n")
-      (move-multiple :news (:news files) "В папку 05_COLLECTIONS_ADV\\02_NEWS\n")
-      (move-multiple :mail (:mail files) "В папку 05_COLLECTIONS_ADV\\01_MAIL\n")
-      (move-multiple :smm-ALL (:smm-ALL files) "В папку 05_COLLECTIONS_ADV\\03_SMM\n")
-      (move-multiple :banners-ALL (:banners-ALL files) "В папку 05_COLLECTIONS_BANNERS\n")
-      (move-multiple :webbanners-ALL (:webbanners-ALL files) "В папку 05_COLLECTIONS_WEB_BANNERS\n")
-      (move-multiple :mail-ALL (:mail-ALL files) "В папку 05_COLLECTIONS_ADV\\01_MAIL\n")
-      (move-multiple :white (:white files) "В папку 04_SKU_PNG_WHITE\n")
+      (when (not-empty (:smm files))
+        (doseq [file (:smm files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:smm files) :heading "В папку СММ\n"})))
+
+      (when (not-empty (:banners files))
+        (doseq [file (:banners files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:banners files) :heading "В папку 05_COLLECTIONS_BANNERS\n"})))
+
+      (when (not-empty (:news files))
+        (doseq [file (:news files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:news files) :heading "В папку 05_COLLECTIONS_ADV\\02_NEWS\n"})))
+
+      (when (not-empty (:mail files))
+        (doseq [file (:mail files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:mail files) :heading "В папку 05_COLLECTIONS_ADV\\01_MAIL\n"})))
+
+      (when (not-empty (:smm-ALL files))
+        (doseq [file (:smm-ALL files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:smm-ALL files) :heading "В папку 05_COLLECTIONS_ADV\\03_SMM\n"})))
+
+      (when (not-empty (:banners-ALL files))
+        (doseq [file (:banners-ALL files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:banners-ALL files) :heading "В папку 05_COLLECTIONS_BANNERS\n"})))
+
+      (when (not-empty (:webbanners-ALL files))
+        (doseq [file (:webbanners-ALL files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:webbanners-ALL files) :heading "В папку 05_COLLECTIONS_WEB_BANNERS\n"})))
+
+      (when (not-empty (:mail-ALL files))
+        (doseq [file (:mail-ALL files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:mail-ALL files) :heading "В папку 05_COLLECTIONS_ADV\\01_MAIL\n"})))
+
+      (when (not-empty (:white files))
+        (doseq [file (:white files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:white files) :heading "В папку 04_SKU_PNG_WHITE\n"})))
+
+
       (when (not-empty (:abris files))
         (doseq [file (:abris files)]
-          (copy-abris file)))
+          (copy-abris file))
+        (add-to-message-log! (notify-msg-create {:files (:white files) :heading "В папку 04_SKU_PNG_WHITE\n"})))
 
-      #_(when (not-empty (:err-files files))
+      (when (not-empty (:err-files files))
         (send-message! (str "ошибки в названиях фото" (mapv fs/file-name (:err-files files)))))
+
+      (when (not-empty @message-log)
+        (send-message! (str/join "\n" @message-log))
+        (swap! message-log empty))
 
       (if (not-empty (:to-upload files))
         (do
@@ -188,25 +235,21 @@
 
 (defn form-page [_]
   (let [files (get-files)
-        err-files (concat (:err-files files))]
+        err-files (:err-files files)]
     (hiccup/html5
      [:body
       [:head (hiccup/include-css "styles.css" "additional.css")]
       [:head (hiccup/include-js "htmx.js")]
       [:main {:class "container mx-auto grid grid-cols-1 gap-4"}
        [:div {:class "flex items-center justify-center"}
-        (display-files {:files (:hot-dir files) :heading "Hot Dir" :when-empty "Фото отсутствуют"})]
-       [:div {:class "flex items-center justify-center"}
-        (when (> (count (:videos files)) 0)
-          (display-files {:files (:videos files) :heading "video hot-dir"}))]
+        (display-files {:files (:all-valid files) :heading "Hot Dir" :when-empty "Фото отсутствуют"})]
        (when (> (count err-files) 0)
          [:div
           [:h3 "Файлы с ошибками"]
           [:ul
-           (for [file (concat err-files)]
+           (for [file err-files]
              [:li (fs/file-name file)])]])]
-      (when (> (count (concat
-                       (:hot-dir files) (:videos files))) 0)
+      (when (> (count (:all-valid files)) 0)
         [:div {:class "flex flex-col items-center pt-10"}
          [:button {:type "submit" :hx-post "/hot-dir-upload" :hx-swap "outerHTML" :class "btn btn-primary btn-wide"} "Загрузить"
           [:img {:class "htmx-indicator" :src "https://htmx.org/img/bars.svg" :alt "Загрузка..."}]]])
@@ -386,14 +429,12 @@
      :webbanners-ALL ["/home/li/TEMP/HOT_DIR/CL723_WEBBANNERS_ALL_1.jpg"],
      :news ["/home/li/TEMP/HOT_DIR/CL723330G_NEWS_1.jpg"],
      :regular-hot-dir []})
-  
 
   (when (not-empty (:smm files))
     (doseq [file (:smm files)]
       (move-file file))
     (notify! {:files (:smm files) :heading "TESR"}))
-  
-  
+
   (move-multiple "smm" (:smm files) "В папку СММ\n")
   (move-multiple "banners" (:banners files) "В папку 05_COLLECTIONS_BANNERS\n")
   (move-multiple "webbanners" (:webbanners files) "В папку 05_COLLECTIONS_WEB_BANNERS\n")
@@ -414,15 +455,6 @@
   (defn move-multiple [key files heading])
 
 
-
-  (let [key "smm"
-        files test-data
-        heading "FOO"]
-    (when-not (empty? ((keyword key) files))
-      (doseq [file ((keyword key) files)]
-        (move-file file))))
-
-
   (move-file "/home/li/TEMP/HOT_DIR/CL723330G_SMM_1.jpg")
 
   #_(when (not-empty ((keyword key) files))
@@ -431,7 +463,6 @@
           (move-file file))
       #_(notify! {:files ((keyword key) files) :heading heading}))
 
-  )
-  
-  
-  
+
+
+)

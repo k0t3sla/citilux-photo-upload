@@ -63,11 +63,12 @@
                  (= first-2 "EL") "ELETTO"
                  (= first-2 "IN") "INLUX"
                  (re-matches #"\d{2}.*" first-2) "ACCESSORIES")]
-     (str brand '/
-          dir-to-save
-          (subs art 0 (min 3 art-len)) '/
-          (subs art 0 (min 5 art-len)) '/
-          art '/))))
+     (str (:out-dir env)
+      brand '/
+      dir-to-save
+      (subs art 0 (min 3 art-len)) '/
+      (subs art 0 (min 5 art-len)) '/
+      art '/))))
 
 
 (defn get-dimm [^String path]
@@ -132,6 +133,17 @@
     (println msg)
     (when-not (str/blank? msg)
       (send-message! msg))))
+
+(defn notify-msg-create
+  "Перечисляем фото или видео с их колличеством"
+  [{:keys [files heading err?]}]
+  (let [file-types ["jpg" "mp4" "psd" "png"]
+        msgs (for [file-type file-types]
+               (process-files files file-type heading err?))
+        msg (str (when heading heading) (apply str msgs))]
+    (println msg)
+    (when-not (str/blank? msg)
+      msg)))
 
 (defn get-all-articles []
   (-> (client/post (str (:root-1c-endpoint env) (:get-all-articles-url env))
