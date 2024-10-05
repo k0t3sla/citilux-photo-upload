@@ -179,6 +179,12 @@
         (doseq [file (:webbanners-ALL files)]
           (move-file file))
         (add-to-message-log! (notify-msg-create {:files (:webbanners-ALL files) :heading "В папку 05_COLLECTIONS_WEB_BANNERS\n"})))
+      
+      (when (not-empty (:webbanners files))
+        (doseq [file (:webbanners files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:webbanners files) :heading "В папку 05_COLLECTIONS_WEB_BANNERS\n"})))
+
 
       (when (not-empty (:mail-ALL files))
         (doseq [file (:mail-ALL files)]
