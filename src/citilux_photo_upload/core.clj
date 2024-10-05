@@ -101,7 +101,7 @@
         WEBBANNERS_ALL  (filterv valid-file-name-WEBBANNERS_ALL? hotdir-files)
         MAIL_ALL  (filterv valid-file-name-MAIL_ALL? hotdir-files)
         to-upload (set (mapv get-article (filter valid-regular-file-name? regular-hot-dir)))
-        all-valid (concat regular-hot-dir SMM BANNERS WEBBANNERS NEWS MAIL SMM_ALL BANNERS_ALL WEBBANNERS_ALL MAIL_ALL abris white)]
+        all-valid (concat regular-hot-dir SMM BANNERS WEBBANNERS NEWS MAIL SMM_ALL BANNERS_ALL NEWS_ALL WEBBANNERS_ALL MAIL_ALL abris white)]
     {:err-files (vec (remove #(contains? (set all-valid) %) hotdir-files))
      :to-upload to-upload
      :smm SMM
