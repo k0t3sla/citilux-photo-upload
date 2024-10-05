@@ -19,6 +19,7 @@
                      valid-file-name-NEWS?
                      valid-file-name-MAIL?
                      valid-file-name-SMM_ALL?
+                     valid-file-name-NEWS_ALL?
                      valid-file-name-BANNERS_ALL?
                      valid-file-name-WEBBANNERS_ALL?
                      valid-file-name-MAIL_ALL?
@@ -95,6 +96,7 @@
         NEWS  (filterv valid-file-name-NEWS? hotdir-files)
         MAIL  (filterv valid-file-name-MAIL? hotdir-files)
         SMM_ALL  (filterv valid-file-name-SMM_ALL? hotdir-files)
+        NEWS_ALL  (filterv valid-file-name-NEWS_ALL? hotdir-files)
         BANNERS_ALL  (filterv valid-file-name-BANNERS_ALL? hotdir-files)
         WEBBANNERS_ALL  (filterv valid-file-name-WEBBANNERS_ALL? hotdir-files)
         MAIL_ALL  (filterv valid-file-name-MAIL_ALL? hotdir-files)
@@ -108,6 +110,7 @@
      :news NEWS
      :mail MAIL
      :smm-ALL SMM_ALL
+     :news-ALL NEWS_ALL
      :banners-ALL BANNERS_ALL
      :webbanners-ALL WEBBANNERS_ALL
      :mail-ALL MAIL_ALL
@@ -135,7 +138,7 @@
         (doseq [file (:regular-hot-dir files)]
           (if (check-dimm file)
             (do (fs/copy file (create-path-dimm-source file) {:replace-existing true})
-             (move-and-compress file))
+                (move-and-compress file))
             (swap! err-fotos conj file)))
         (add-to-message-log! (notify-msg-create {:files (:regular-hot-dir files) :heading "Загружены фото в папку\n"}))
         (when-not (:debug env)
@@ -187,6 +190,11 @@
         (doseq [file (:mail-ALL files)]
           (move-file file))
         (add-to-message-log! (notify-msg-create {:files (:mail-ALL files) :heading "В папку 05_COLLECTIONS_ADV\\01_MAIL\n"})))
+
+      (when (not-empty (:news-ALL files))
+        (doseq [file (:news-ALL files)]
+          (move-file file))
+        (add-to-message-log! (notify-msg-create {:files (:news-ALL files) :heading "В папку 05_COLLECTIONS_ADV\\02_NEWS/\n"})))
 
       (when (not-empty (:white files))
         (doseq [file (:white files)]

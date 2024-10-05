@@ -109,6 +109,18 @@
 (defn valid-file-name-SMM_ALL? [file-name]
   (s/valid? ::file-name_SMM_ALL (fs/file-name file-name)))
 
+(s/def ::file-name_NEWS_ALL
+  (s/and
+   string?
+   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_NEWS_ALL_(\d+)\.(\w+)" %)]
+      (and prefix number ext
+           (valid-article-prefix? prefix)
+           (s/valid? ::number-part number)
+           (s/valid? ::extension ext)))))
+
+(defn valid-file-name-NEWS_ALL? [file-name]
+  (s/valid? ::file-name_NEWS_ALL (fs/file-name file-name)))
+
 (s/def ::file-name_BANNERS_ALL
   (s/and
    string?
