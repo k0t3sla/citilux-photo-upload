@@ -173,10 +173,19 @@
       msg)))
 
 (defn get-all-articles []
-  (-> (client/post (str (:root-1c-endpoint env) (:get-all-articles-url env))
-                   {:headers {"Authorization" (:token-1c env)}})
-      :body
-      parse-resp))
+  (let [resp (-> (client/post (str (:root-1c-endpoint env) (:get-all-articles-url env))
+                              {:headers {"Authorization" (:token-1c env)}})
+                 :body
+                 parse-resp)]
+    (filterv (complement #(or
+                           (str/includes? % "_DRV")
+                           (str/includes? % "МЛК")
+                           (str/includes? % "ТЕСТ")
+                           (str/includes? % "pult")
+                           (str/includes? % "_(GroupPack)")
+                           (str/starts-with? % "BOX_"))) resp)))
+
+
 
 (defn report-imgs-1c! [arts]
   (when-not (= "OK" (-> (client/post (str (:root-1c-endpoint env) (:imgs-report-1c env))
@@ -263,94 +272,107 @@
 (defn split-articles [^String s]
   (filter #(not (str/blank? %)) (str/split s #",|\n|\t")))
 
+(defn create-dir-if-not-exist [path]
+  (when (not (fs/exists? path))
+    (fs/create-dirs path)))
+
+
+(defn create-dirs-ctructure []
+
+  (let [;;all-articles (take 3588 (get-all-articles))
+        all-articles ["CL111111" "CL112111"]
+        check-prod (fn [art] (if (re-matches #"\d{3}" (subs art 0 3))
+                               false
+                               true))
+
+        create-path-art (fn [art type]
+                          (let [art-len (count art)]
+                            (str (subs art 0 (min 3 art-len)) '/
+                                 (subs art 0 (min 5 art-len)) '/
+                                 (when (= type "A")
+                                   (str art '/)))))
+
+        dirs [["0_TEST_REPORTS" "C" "01_PRODUCTION_FILES"]
+              ["01_3D"	"C" "01_PRODUCTION_FILES"]
+              ["01_ABRIS"	"A" "01_PRODUCTION_FILES"]
+              ["02_BOX"	"C" "01_PRODUCTION_FILES"]
+              ["02_LABELS"	"A" "01_PRODUCTION_FILES"]
+              ["02_MASTER_LABELS"	"C" "01_PRODUCTION_FILES"]
+              ["03_ASSEMBLY"	"A" "01_PRODUCTION_FILES"]
+              ["03_MANUAL"	"A" "01_PRODUCTION_FILES"]
+              ["04_OTHER"	"C" "01_PRODUCTION_FILES"]
+              ["02_BANK_PHOTO"	"A"]
+              ["02_BANK_VIDEO_SHORTS"	"A"]
+              ["03_MAKET_VERSTKI"	"A"]
+              ["03_PHOTO_PNG"	"A"]
+              ["03_PHOTO_PSD_ RGB"	"A"]
+              ["03_SOURCE_1_1"	"A"]
+              ["03_SOURCE_3_4"	"A"]
+              ["04_SKU_1C"	"A"]
+              ["04_SKU_PNG_WHITE"	"A"]
+              ["04_SKU_3D_FOR_DESIGNERS"	"A"]
+              ["04_SKU_EXTERNAL_1_1"	"A"]
+              ["04_SKU_EXTERNAL_3_4"	"A"]
+              ["04_SKU_INTERNAL_1_1"	"A"]
+              ["04_SKU_INTERNAL_3_4"	"A"]
+              ["04_SKU_VIDEO_SHORTS"	"A"]
+              ["01_MAIL"	"C" "05_COLLECTIONS_ADV"]
+              ["02_NEWS"	"C" "05_COLLECTIONS_ADV"]
+              ["03_SMM"	"C" "05_COLLECTIONS_ADV"]
+              ["05_COLLECTIONS_BANNERS" "C"]
+              ["05_COLLECTIONS_VIDEO"	"C"]
+              ["05_COLLECTIONS_WEB_BANNERS" "C"]]
+
+        prod-list (filter check-prod all-articles)
+        accessories (filter (complement check-prod) all-articles)
+
+        in (filter #(str/starts-with? % "IN") prod-list)
+        cl (filter #(str/starts-with? % "CL") prod-list)
+        el (filter #(str/starts-with? % "EL") prod-list)
+
+        create-path-dir (fn [d a root]
+                          (str (:out-dir env) root (when (= (count d) 3) (last d)) "/"
+                               (first d) "/"
+                               (create-path-art a (second d))))]
+
+    
+    (doseq [d dirs]
+      (doseq [a accessories]
+        (create-dir-if-not-exist
+         (create-path-dir d a "ACCESSORIES/"))))
+
+    (doseq [d dirs]
+      (doseq [a el]
+        (create-dir-if-not-exist
+         (create-path-dir d a "ELETTO/"))))
+
+    (doseq [d dirs]
+      (doseq [a in]
+        (create-dir-if-not-exist
+         (create-path-dir d a "INLUX/"))))
+
+    (doseq [d dirs]
+      (doseq [a cl]
+        (create-dir-if-not-exist
+         (create-path-dir d a "CITILUX/"))))))
+        
+
 (comment
-
-
+  
+  (count (get-all-articles))
 
   ;;;; DIR GENERATOR
 
-  (def dirs [["0_TEST_REPORTS" "C" "01_PRODUCTION_FILES"]
-             ["01_3D"	"C" "01_PRODUCTION_FILES"]
-             ["01_ABRIS"	"A" "01_PRODUCTION_FILES"]
-             ["02_BOX"	"C" "01_PRODUCTION_FILES"]
-             ["02_LABELS"	"A" "01_PRODUCTION_FILES"]
-             ["02_MASTER_LABELS"	"C" "01_PRODUCTION_FILES"]
-             ["03_ASSEMBLY"	"A" "01_PRODUCTION_FILES"]
-             ["03_MANUAL"	"A" "01_PRODUCTION_FILES"]
-             ["04_OTHER"	"C" "01_PRODUCTION_FILES"]
-             ["02_BANK_PHOTO"	"A"]
-             ["02_BANK_VIDEO_SHORTS"	"A"]
-             ["03_MAKET_VERSTKI"	"A"]
-             ["03_PHOTO_PNG"	"A"]
-             ["03_PHOTO_PSD_ RGB"	"A"]
-             ["03_SOURCE_1_1"	"A"]
-             ["03_SOURCE_3_4"	"A"]
-             ["04_SKU_1C"	"A"]
-             ["04_SKU_PNG_WHITE"	"A"]
-             ["04_SKU_3D_FOR_DESIGNERS"	"A"]
-             ["04_SKU_EXTERNAL_1_1"	"A"]
-             ["04_SKU_EXTERNAL_3_4"	"A"]
-             ["04_SKU_INTERNAL_1_1"	"A"]
-             ["04_SKU_INTERNAL_3_4"	"A"]
-             ["04_SKU_VIDEO_SHORTS"	"A"]
-             ["01_MAIL"	"C" "05_COLLECTIONS_ADV"]
-             ["02_NEWS"	"C" "05_COLLECTIONS_ADV"]
-             ["03_SMM"	"C" "05_COLLECTIONS_ADV"]
-             ["05_COLLECTIONS_BANNERS" "C"]
-             ["05_COLLECTIONS_VIDEO"	"C"]
-             ["05_COLLECTIONS_WEB_BANNERS" "C"]])
+  (take 15 (reverse (get-all-articles)))
+
+  (count (get-all-articles))
+
+  (take 1 [1 2])
+
+  (create-dirs-ctructure)
 
 
-  (defn check-prod [art]
-    (if (re-matches #"\d{3}" (subs art 0 3))
-      false
-      true))
-
-  (defn create-path-art
-    "Создание пути для сохранения, первые 3, 5 или весь артикул"
-    ([art type]
-     (let [art-len (count art)]
-       (str (subs art 0 (min 3 art-len)) '/
-            (subs art 0 (min 5 art-len)) '/
-            (when (= type "A")
-              (str art '/))))))
-
-
-  (create-path-art "CL123456" "C")
-
-  (def prod-list (filter check-prod (get-all-articles)))
-  (def plafons (filter (complement check-prod) (get-all-articles)))
-
-  (def in (filter #(str/starts-with? % "IN") prod-list))
-  (def cl (filter #(str/starts-with? % "CL") prod-list))
-  (def el (filter #(str/starts-with? % "EL") prod-list))
-
-  (doseq [d dirs]
-    (doseq [a plafons]
-      (fs/create-dirs (str "/home/li/TEMP/ACCESSORIES/" (when (= (count d) 3) (last d)) "/"
-                           (first d) "/"
-                           (create-path-art a (second d))))))
-
-  (doseq [d dirs]
-    (doseq [a el]
-      (fs/create-dirs (str "/home/li/TEMP/ELETTO/" (when (= (count d) 3) (last d)) "/"
-                           (first d) "/"
-                           (create-path-art a (second d))))))
-
-  (doseq [d dirs]
-    (doseq [a in]
-      (fs/create-dirs (str "/home/li/TEMP/INLUX/" (when (= (count d) 3) (last d)) "/"
-                           (first d) "/"
-                           (create-path-art a (second d))))))
-
-  (doseq [d dirs]
-    (doseq [a cl]
-      (fs/create-dirs (str "/home/li/TEMP/CITILUX/" (when (= (count d) 3) (last d)) "/"
-                           (first d) "/"
-                           (create-path-art a (second d))))))
-
-
-
+  ()
 
   )
 

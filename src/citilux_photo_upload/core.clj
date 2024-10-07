@@ -27,6 +27,7 @@
                      white?]]
             [citilux-photo-upload.utils :refer [notify!
                                                 exist?
+                                                create-dirs-ctructure
                                                 copy-file
                                                 move-file
                                                 create-path-dimm
@@ -305,6 +306,15 @@
          (str [:h2 "Ошибка"]
               [:h3 e]))))
 
+(defn create-dirs-handler [_]
+  (try (create-dirs-ctructure)
+       (str
+        (h/html
+         [:h2 "Успешно перегененированы директории"]))
+       (catch Exception e
+         (str [:h2 "Ошибка"]
+              [:h3 e]))))
+
 (defn upload-to-server [request]
   (let [params (-> request
                    :params
@@ -375,6 +385,11 @@
      ["/update"
       {:post (fn [request]
                (-> (update-handler request)
+                   (response/response)
+                   (response/header "content-type" "text/html")))}]
+     ["/create-dirs"
+      {:get (fn [request]
+               (-> (create-dirs-handler request)
                    (response/response)
                    (response/header "content-type" "text/html")))}]])))
 
