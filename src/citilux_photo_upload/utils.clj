@@ -3,6 +3,7 @@
             [clj-http.client :as client]
             [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
+            [clojure.java.shell :as sh] 
             [clojure.walk :as walk]
             [mikera.image.core :as img]
             [clojure.string :as str])
@@ -130,6 +131,29 @@
      (fs/create-dirs out-path)
      out-path)))
 
+(defn move-and-compress [file]
+  (let [mozjpeg-bin "./cjpeg-static"
+        tmp-path (str "tmp" '/ (str (first (fs/split-ext (fs/file-name file))) ".jpg"))
+        _ (sh/sh mozjpeg-bin "-quality" (:quality env) "-outfile" tmp-path file)
+        orig-size (fs/size file)
+        zipped-size (fs/size tmp-path)
+        ratio (float (/ zipped-size orig-size))
+        path (str (:out-dir env) (create-path-dimm file))]
+    (println ratio)
+    (if (< ratio 0.9)
+      (do
+        (fs/create-dirs path)
+        (println "comprassing and moving")
+        (println path)
+        (fs/copy tmp-path path {:replace-existing true}))
+      (do
+        (fs/create-dirs path)
+        (println "just moving")
+        (println path)
+        (fs/copy file path {:replace-existing true})))
+    (fs/delete-if-exists file)
+    (fs/delete-if-exists tmp-path)))
+
 (defn filter-files-ext [files ext]
   (filter (fn [x]
             (= (fs/extension x) ext))
@@ -244,19 +268,31 @@
         art (get-article file-name)
         path-to-input (str (:hot-dir env) file-name)
         path-todir (str (:out-dir env) (create-path-dimm path-to-input))
+        path-todir-source (create-path-dimm-source path-to-input)
         path-todir-abris (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/")
-        _ (println "path-todir-abris " path-todir-abris)
-        _ (println "path-todir " path-todir)
         _ (fs/create-dirs path-todir)
         _ (fs/create-dirs path-todir-abris)
+        _ (fs/create-dirs path-todir-source)
+        _ (println "path-todir " path-todir)
+        _ (println "path-todir-abris " path-todir-abris)
+        _ (println "path-todir-source " path-todir-source)
         out-internal (str path-todir file-name)
+        out-source (str path-todir-source file-name)
         out-abris (str path-todir-abris file-name)]
-    (fs/copy file out-internal {:replace-existing true})
-    (fs/copy file out-abris {:replace-existing true})
+    (if (fs/exists? out-internal)
+      (do
+        (println "file exist")
+        (fs/copy file out-source {:replace-existing true})
+        (println "copied" file "to" out-source)
+        (move-and-compress file))
+      (do
+        (println "file not  exist")
+        (fs/copy file out-internal {:replace-existing true})
+        (fs/copy file out-abris {:replace-existing false})))
     (fs/delete-if-exists file)))
 
 (comment
-  (copy-abris "/home/k0t3sla/TMP/HOT_DIR/CL237B310_31.jpg")
+  (copy-abris "/home/li/TEMP/HOT_DIR/CL237B310_31.jpg")
   )
 
 (defn move-file

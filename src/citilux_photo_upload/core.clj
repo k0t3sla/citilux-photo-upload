@@ -1,7 +1,6 @@
 (ns citilux-photo-upload.core
   (:require [babashka.fs :as fs]
             [clojure.string :as str]
-            [clojure.java.shell :as sh]
             [config.core :refer [env]]
             [org.httpkit.server :as http]
             [hiccup.page :as hiccup]
@@ -27,15 +26,14 @@
                      white?]]
             [citilux-photo-upload.utils :refer [notify!
                                                 exist?
-                                                create-dirs-ctructure
-                                                copy-file
-                                                move-file
-                                                create-path-dimm
+                                                create-dirs-ctructure 
+                                                move-file 
                                                 create-path-with-root
                                                 check-dimm
                                                 copy-abris
                                                 get-article
                                                 split-articles
+                                                move-and-compress
                                                 notify-msg-create
                                                 report-imgs-1c!
                                                 create-path-dimm-source
@@ -56,28 +54,6 @@
 (defn hotdir-files []
   (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}")))
 
-(defn move-and-compress [file]
-  (let [mozjpeg-bin "./cjpeg-static"
-        tmp-path (str "tmp" '/ (str (first (fs/split-ext (fs/file-name file))) ".jpg"))
-        _ (sh/sh mozjpeg-bin "-quality" (:quality env) "-outfile" tmp-path file)
-        orig-size (fs/size file)
-        zipped-size (fs/size tmp-path)
-        ratio (float (/ zipped-size orig-size))
-        path (str (:out-dir env) (create-path-dimm file))]
-    (println ratio)
-    (if (< ratio 0.9)
-      (do
-        (fs/create-dirs path)
-        (println "comprassing and moving")
-        (println path)
-        (fs/copy tmp-path path {:replace-existing true}))
-      (do
-        (fs/create-dirs path)
-        (println "just moving")
-        (println path)
-        (fs/copy file path {:replace-existing true})))
-    (fs/delete-if-exists file)
-    (fs/delete-if-exists tmp-path)))
 
 (defn filter-files [{:keys [filter-errors? files]}]
   (let [correct-arts (filter #(exist? % @all-articles) files)
