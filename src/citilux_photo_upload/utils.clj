@@ -41,10 +41,10 @@
          art-len (count art)
          first-2 (subs art 0 2)
          brand (cond
-                 (= first-2 "CL") "CITILUX"
-                 (= first-2 "EL") "ELETTO"
-                 (= first-2 "IN") "INLUX"
-                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")
+                 (= first-2 "CL") "20_CITILUX"
+                 (= first-2 "EL") "50_ELETTO"
+                 (= first-2 "IN") "40_INLUX"
+                 (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
          out-path (str
                    (:out-dir env)
                    brand '/
@@ -61,10 +61,10 @@
          art-len (count art)
          first-2 (subs art 0 2)
          brand (cond
-                 (= first-2 "CL") "CITILUX"
-                 (= first-2 "EL") "ELETTO"
-                 (= first-2 "IN") "INLUX"
-                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")
+                 (= first-2 "CL") "20_CITILUX"
+                 (= first-2 "EL") "50_ELETTO"
+                 (= first-2 "IN") "40_INLUX"
+                 (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
          out-path (str (:out-dir env)
                        brand '/
                        dir-to-save
@@ -94,10 +94,10 @@
          first-2 (subs art 0 2)
          dimm (get-dimm file)
          brand (cond
-                 (= first-2 "CL") "CITILUX"
-                 (= first-2 "EL") "ELETTO"
-                 (= first-2 "IN") "INLUX"
-                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")
+                 (= first-2 "CL") "20_CITILUX"
+                 (= first-2 "EL") "50_ELETTO"
+                 (= first-2 "IN") "40_INLUX"
+                 (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
          out-path (str brand '/
                        (if (= dimm "1x1")
                          "04_SKU_INTERNAL_1_1/"
@@ -115,10 +115,10 @@
          first-2 (subs art 0 2)
          dimm (get-dimm file)
          brand (cond
-                 (= first-2 "CL") "CITILUX"
-                 (= first-2 "EL") "ELETTO"
-                 (= first-2 "IN") "INLUX"
-                 (re-matches #"\d{2}.*" first-2) "ACCESSORIES")
+                 (= first-2 "CL") "20_CITILUX"
+                 (= first-2 "EL") "50_ELETTO"
+                 (= first-2 "IN") "40_INLUX"
+                 (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
          out-path (str
                    (:out-dir env)
                    brand '/
