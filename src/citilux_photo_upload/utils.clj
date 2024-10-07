@@ -279,8 +279,7 @@
 
 (defn create-dirs-ctructure []
 
-  (let [;;all-articles (take 3588 (get-all-articles))
-        all-articles ["CL111111" "CL112111"]
+  (let [all-articles (take 3588 (get-all-articles))
         check-prod (fn [art] (if (re-matches #"\d{3}" (subs art 0 3))
                                false
                                true))
