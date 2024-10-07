@@ -108,7 +108,9 @@
 
       (when (not-empty (:abris files))
         (doseq [file (:abris files)]
-          (copy-abris file))
+          (if (check-dimm file)
+            (copy-abris file)
+            (swap! err-fotos conj file)))
         (add-to-message-log! (notify-msg-create {:files (:white files) :heading "В папку 01_PRODUCTION_FILES/01_ABRIS/\n"})))
 
       (when (not-empty (:regular-hot-dir files))
