@@ -315,7 +315,7 @@
 
 (defn create-dirs-ctructure []
 
-  (let [all-articles (take 3588 (get-all-articles))
+  (let [all-articles (get-all-articles)
         check-prod (fn [art] (if (re-matches #"\d{3}" (subs art 0 3))
                                false
                                true))
@@ -370,26 +370,26 @@
                                (first d) "/"
                                (create-path-art a (second d))))]
 
-    
+
     (doseq [d dirs]
       (doseq [a accessories]
         (create-dir-if-not-exist
-         (create-path-dir d a "ACCESSORIES/"))))
+         (create-path-dir d a "10_ACCESSORIES/"))))
 
     (doseq [d dirs]
       (doseq [a el]
         (create-dir-if-not-exist
-         (create-path-dir d a "ELETTO/"))))
+         (create-path-dir d a "50_ELETTO/"))))
 
     (doseq [d dirs]
       (doseq [a in]
         (create-dir-if-not-exist
-         (create-path-dir d a "INLUX/"))))
+         (create-path-dir d a "40_INLUX/"))))
 
     (doseq [d dirs]
       (doseq [a cl]
         (create-dir-if-not-exist
-         (create-path-dir d a "CITILUX/"))))))
+         (create-path-dir d a "20_CITILUX/"))))))
         
 
 (comment
