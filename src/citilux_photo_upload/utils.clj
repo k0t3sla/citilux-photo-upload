@@ -65,8 +65,7 @@
                  (= first-2 "EL") "50_ELETTO"
                  (= first-2 "IN") "40_INLUX"
                  (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
-         out-path (str (:out-dir env)
-                       brand '/
+         out-path (str brand '/
                        dir-to-save
                        (subs art 0 (min 3 art-len)) '/
                        (subs art 0 (min 5 art-len)) '/
@@ -269,7 +268,7 @@
         path-to-input (str (:hot-dir env) file-name)
         path-todir (str (:out-dir env) (create-path-dimm path-to-input))
         path-todir-source (create-path-dimm-source path-to-input)
-        path-todir-abris (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/")
+        path-todir-abris (str (:out-dir env) (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/"))
         _ (fs/create-dirs path-todir)
         _ (fs/create-dirs path-todir-abris)
         _ (fs/create-dirs path-todir-source)

@@ -54,6 +54,9 @@
 (defn hotdir-files []
   (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}")))
 
+(defn hotdir-files-wb []
+  (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png}")))
+
 
 (defn filter-files [{:keys [filter-errors? files]}]
   (let [correct-arts (filter #(exist? % @all-articles) files)
@@ -177,7 +180,7 @@
 
       (when (not-empty (:white files))
         (doseq [file (:white files)]
-          (let [path (create-path-with-root file "04_SKU_PNG_WHITE/")]
+          (let [path (str (:out-path env) (create-path-with-root file "04_SKU_PNG_WHITE/"))]
             (fs/create-dirs path)
             (fs/copy file path {:replace-existing true})
             (fs/delete-if-exists file)))
