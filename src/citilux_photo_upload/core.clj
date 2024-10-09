@@ -36,7 +36,6 @@
                                                 move-and-compress
                                                 notify-msg-create
                                                 report-imgs-1c!
-                                                create-path-dimm-source
                                                 send-message!
                                                 article-stat-handler
                                                 general-stat-handler
@@ -66,23 +65,28 @@
       :else correct-arts)))
 
 (defn get-files []
-  (let [hotdir-files (hotdir-files)
-        abris (filterv check-abris? hotdir-files)
-        white (filterv white? hotdir-files)
-        regular-hot-dir (vec (remove #(contains? (set (concat abris white)) %) (filterv valid-regular-file-name? hotdir-files)))
-        SMM  (filterv valid-file-name-SMM? hotdir-files)
-        BANNERS  (filterv valid-file-name-BANNERS? hotdir-files)
-        WEBBANNERS  (filterv valid-file-name-WEBBANNERS? hotdir-files)
-        NEWS  (filterv valid-file-name-NEWS? hotdir-files)
-        MAIL  (filterv valid-file-name-MAIL? hotdir-files)
-        SMM_ALL  (filterv valid-file-name-SMM_ALL? hotdir-files)
-        NEWS_ALL  (filterv valid-file-name-NEWS_ALL? hotdir-files)
-        BANNERS_ALL  (filterv valid-file-name-BANNERS_ALL? hotdir-files)
-        WEBBANNERS_ALL  (filterv valid-file-name-WEBBANNERS_ALL? hotdir-files)
-        MAIL_ALL  (filterv valid-file-name-MAIL_ALL? hotdir-files)
-        to-upload (set (mapv get-article (filter valid-regular-file-name? regular-hot-dir)))
-        all-valid (concat regular-hot-dir SMM BANNERS WEBBANNERS NEWS MAIL SMM_ALL BANNERS_ALL NEWS_ALL WEBBANNERS_ALL MAIL_ALL abris white)]
+  (let [hotdir-files       (hotdir-files)
+        hotdir-files-wb    (hotdir-files-wb)
+        abris              (filterv check-abris? hotdir-files)
+        white              (filterv white? hotdir-files)
+        white-wb           (filterv white? hotdir-files-wb)
+        regular-hot-dir    (vec (remove #(contains? (set (concat abris white)) %) (filterv valid-regular-file-name? hotdir-files)))
+        all-valid-wb       (vec (remove #(contains? (set white-wb) %) (filterv valid-regular-file-name? hotdir-files-wb)))
+        SMM                (filterv valid-file-name-SMM? hotdir-files)
+        BANNERS            (filterv valid-file-name-BANNERS? hotdir-files)
+        WEBBANNERS         (filterv valid-file-name-WEBBANNERS? hotdir-files)
+        NEWS               (filterv valid-file-name-NEWS? hotdir-files)
+        MAIL               (filterv valid-file-name-MAIL? hotdir-files)
+        SMM_ALL            (filterv valid-file-name-SMM_ALL? hotdir-files)
+        NEWS_ALL           (filterv valid-file-name-NEWS_ALL? hotdir-files)
+        BANNERS_ALL        (filterv valid-file-name-BANNERS_ALL? hotdir-files)
+        WEBBANNERS_ALL     (filterv valid-file-name-WEBBANNERS_ALL? hotdir-files)
+        MAIL_ALL           (filterv valid-file-name-MAIL_ALL? hotdir-files)
+        to-upload          (set (mapv get-article (filter valid-regular-file-name? regular-hot-dir)))
+        all-valid (concat regular-hot-dir SMM BANNERS WEBBANNERS NEWS MAIL SMM_ALL
+                          BANNERS_ALL NEWS_ALL WEBBANNERS_ALL MAIL_ALL abris white)]
     {:err-files (vec (remove #(contains? (set all-valid) %) hotdir-files))
+     :err-files-wb (vec (remove #(contains? (set all-valid-wb) %) hotdir-files-wb))
      :to-upload to-upload
      :smm SMM
      :banners BANNERS
@@ -97,7 +101,9 @@
      :abris abris
      :white white
      :all-valid all-valid
-     :regular-hot-dir regular-hot-dir}))
+     :all-valid-wb all-valid-wb
+     :regular-hot-dir regular-hot-dir
+     :regular-hot-dir-wb all-valid-wb}))
 
 (def message-log (atom []))
 (defn add-to-message-log! [message]
@@ -119,8 +125,23 @@
       (when (not-empty (:regular-hot-dir files))
         (doseq [file (:regular-hot-dir files)]
           (if (check-dimm file)
-            (do (fs/copy file (create-path-dimm-source file) {:replace-existing true})
-                (move-and-compress file))
+            (let [out-path (str (:out-path env) (create-path-with-root file "04_SKU_INTERNAL_1_1/"))]
+              (when-not (fs/exists? out-path) (fs/create-dirs out-path))
+              (fs/copy file out-path {:replace-existing true})
+              (move-and-compress file "04_SKU_INTERNAL_1_1/"))
+            (swap! err-fotos conj file)))
+        (add-to-message-log! (notify-msg-create {:files (:regular-hot-dir files) :heading "Загружены фото в папку\n"}))
+        (when-not (:debug env)
+          (report-imgs-1c! (set (mapv get-article
+                                      (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files)))))))
+
+      (when (not-empty (:regular-hot-dir-wb files))
+        (doseq [file (:regular-hot-dir-wb files)]
+          (if (check-dimm file)
+            (let [out-path (str (:out-path env) (create-path-with-root file "04_SKU_INTERNAL_3_4/"))]
+              (when-not (fs/exists? out-path) (fs/create-dirs out-path))
+              (fs/copy file out-path {:replace-existing true})
+              (move-and-compress file "04_SKU_INTERNAL_3_4/"))
             (swap! err-fotos conj file)))
         (add-to-message-log! (notify-msg-create {:files (:regular-hot-dir files) :heading "Загружены фото в папку\n"}))
         (when-not (:debug env)
@@ -225,22 +246,29 @@
      [:h2 when-empty])])
 
 (defn form-page [_]
-  (let [files (get-files)
-        err-files (:err-files files)]
+  (let [files (get-files)]
     (hiccup/html5
      [:body
       [:head (hiccup/include-css "styles.css" "additional.css")]
       [:head (hiccup/include-js "htmx.js")]
-      [:main {:class "container mx-auto grid grid-cols-1 gap-4"}
+      [:main {:class "container mx-auto grid grid-cols-2 gap-4"}
        [:div {:class "flex items-center justify-center"}
         (display-files {:files (:all-valid files) :heading "Hot Dir" :when-empty "Фото отсутствуют"})]
-       (when (> (count err-files) 0)
+       [:div {:class "flex items-center justify-center"}
+        (display-files {:files (:all-valid-wb files) :heading "Hot Dir WB" :when-empty "Фото отсутствуют"})]
+       (when (> (count (:err-files files)) 0)
          [:div
           [:h3 "Файлы с ошибками"]
           [:ul
-           (for [file err-files]
+           (for [file (:err-files files)]
+             [:li (fs/file-name file)])]])
+       (when (> (count (:err-files-wb files)) 0)
+         [:div
+          [:h3 "Файлы с ошибками wb"]
+          [:ul
+           (for [file (:err-files-wb files)]
              [:li (fs/file-name file)])]])]
-      (when (> (count (:all-valid files)) 0)
+      (when (> (count (concat (:all-valid files) (:all-valid-wb files))) 0)
         [:div {:class "flex flex-col items-center pt-10"}
          [:button {:type "submit" :hx-post "/hot-dir-upload" :hx-swap "outerHTML" :class "btn btn-primary btn-wide"} "Загрузить"
           [:img {:class "htmx-indicator" :src "https://htmx.org/img/bars.svg" :alt "Загрузка..."}]]])
@@ -420,7 +448,7 @@
   (first (:abris (get-files)))
 
   (create-path-with-root "/home/k0t3sla/TMP/HOT_DIR/CL237B310_00.jpg" "04_SKU_PNG_WHITE/")
-  
+
   (copy-abris "/home/k0t3sla/TMP/HOT_DIR/CL237B310_31.jpg")
 
 

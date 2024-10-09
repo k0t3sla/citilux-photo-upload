@@ -46,7 +46,7 @@
                  (= first-2 "IN") "40_INLUX"
                  (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
          out-path (str
-                   (:out-dir env)
+                   (:out-path env)
                    brand '/
                    (when adv adv)
                    (subs art 0 (min 3 art-len)) '/
@@ -72,72 +72,14 @@
                        art '/)]
      out-path)))
 
-
-(defn get-dimm [^String path]
-  (let [img (img/load-image path)
-        ^int w (try
-                 (img/width img)
-                 (catch Exception e (.getMessage e)))
-        ^int h (try
-                 (img/height img)
-                 (catch Exception e (.getMessage e)))]
-    (if (and (= w 2000) (= h 2000))
-      "1x1"
-      "3x4")))
-
-(defn create-path-dimm
-  "Создание пути для сохранения, первые 3, 5 или весь артикул"
-  ([file]
-   (let [art-len (count file)
-         art (get-article file)
-         first-2 (subs art 0 2)
-         dimm (get-dimm file)
-         brand (cond
-                 (= first-2 "CL") "20_CITILUX"
-                 (= first-2 "EL") "50_ELETTO"
-                 (= first-2 "IN") "40_INLUX"
-                 (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
-         out-path (str brand '/
-                       (if (= dimm "1x1")
-                         "04_SKU_INTERNAL_1_1/"
-                         "04_SKU_INTERNAL_3_4/")
-                       (subs art 0 (min 3 art-len)) '/
-                       (subs art 0 (min 5 art-len)) '/
-                       art '/)]
-     out-path)))
-
-(defn create-path-dimm-source
-  "Создание пути для сохранения, первые 3, 5 или весь артикул"
-  ([file]
-   (let [art-len (count file)
-         art (get-article file)
-         first-2 (subs art 0 2)
-         dimm (get-dimm file)
-         brand (cond
-                 (= first-2 "CL") "20_CITILUX"
-                 (= first-2 "EL") "50_ELETTO"
-                 (= first-2 "IN") "40_INLUX"
-                 (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
-         out-path (str
-                   (:out-dir env)
-                   brand '/
-                   (if (= dimm "1x1")
-                     "03_SOURCE_1_1/"
-                     "03_SOURCE_3_4/")
-                   (subs art 0 (min 3 art-len)) '/
-                   (subs art 0 (min 5 art-len)) '/
-                   art '/)]
-     (fs/create-dirs out-path)
-     out-path)))
-
-(defn move-and-compress [file]
+(defn move-and-compress [file dir-to-save]
   (let [mozjpeg-bin "./cjpeg-static"
         tmp-path (str "tmp" '/ (str (first (fs/split-ext (fs/file-name file))) ".jpg"))
         _ (sh/sh mozjpeg-bin "-quality" (:quality env) "-outfile" tmp-path file)
         orig-size (fs/size file)
         zipped-size (fs/size tmp-path)
         ratio (float (/ zipped-size orig-size))
-        path (str (:out-dir env) (create-path-dimm file))]
+        path (str (:out-path env) (create-path-with-root file dir-to-save))]
     (println ratio)
     (if (< ratio 0.9)
       (do
@@ -252,23 +194,15 @@
 (defn exist? [file articles]
   (some #(= (get-article file) %) articles))
 
-(defn copy-file 
-  "on input filepath"
-  [^String file]
-  (let [name (fs/file-name file)
-        art (get-article name)]
-    (fs/create-dirs (create-path art))
-    (fs/copy file (create-path art) {:replace-existing true})))
-
 (defn copy-abris
   "on input filepath"
   [^String file]
   (let [file-name (fs/file-name file)
         art (get-article file-name)
         path-to-input (str (:hot-dir env) file-name)
-        path-todir (str (:out-dir env) (create-path-dimm path-to-input))
-        path-todir-source (create-path-dimm-source path-to-input)
-        path-todir-abris (str (:out-dir env) (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/"))
+        path-todir (str (:out-path env) (create-path-with-root path-to-input "04_SKU_INTERNAL_1_1/"))
+        path-todir-source (str (:out-path env) (create-path-with-root path-to-input "03_SOURCE_1_1/"))
+        path-todir-abris (str (:out-path env) (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/"))
         _ (fs/create-dirs path-todir)
         _ (fs/create-dirs path-todir-abris)
         _ (fs/create-dirs path-todir-source)
@@ -283,7 +217,7 @@
         (println "file exist")
         (fs/copy file out-source {:replace-existing true})
         (println "copied" file "to" out-source)
-        (move-and-compress file))
+        (move-and-compress file "04_SKU_INTERNAL_1_1/"))
       (do
         (println "file not  exist")
         (fs/copy file out-internal {:replace-existing true})
@@ -307,10 +241,11 @@
 (defn split-articles [^String s]
   (filter #(not (str/blank? %)) (str/split s #",|\n|\t")))
 
+;; Generate dir structure
+
 (defn create-dir-if-not-exist [path]
   (when (not (fs/exists? path))
     (fs/create-dirs path)))
-
 
 (defn create-dirs-ctructure []
 
@@ -365,7 +300,7 @@
         el (filter #(str/starts-with? % "EL") prod-list)
 
         create-path-dir (fn [d a root]
-                          (str (:out-dir env) root (when (= (count d) 3) (last d)) "/"
+                          (str (:out-path env) root (when (= (count d) 3) (last d)) "/"
                                (first d) "/"
                                (create-path-art a (second d))))]
 

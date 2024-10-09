@@ -4,7 +4,7 @@
             [babashka.fs :as fs]
             [cheshire.core :as ch]
             [config.core :refer [env]]
-            [citilux-photo-upload.utils :refer [create-path send-message!]])
+            [citilux-photo-upload.utils :refer [create-path-with-root send-message!]])
   (:gen-class))
 
 (defn encode64 [path]
@@ -16,7 +16,7 @@
 (defn upload-fotos
   "Грузим фото на сервер в base64"
   [art]
-  (let [files (sort (mapv str (fs/glob (str (:out-path env) (create-path art)) "**{.jpeg,jpg}")))
+  (let [files (sort (mapv str (fs/glob (str (:out-path env) (create-path-with-root art "04_SKU_INTERNAL_1_1/")) "**{.jpeg,jpg}")))
         detail-foto (when (> (count files) 0)
                       (encode64 (first files)))
         encoded-fotos (when (> (count files) 1) ;; остальные фото исключая детальную

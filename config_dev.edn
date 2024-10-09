@@ -1,0 +1,14 @@
+{:tbot ""
+ :chat_id 0
+ :quality "95"
+ :root-1c-endpoint ""
+ :get-all-articles-url ""
+ :imgs-report-1c ""
+ :token-1c-foto ""
+ :token-1c ""
+ :url ""
+ :token-site ""
+ :hot-dir ""
+ :hot-dir-wb ""
+ :out-path ""
+ :debug true}

@@ -167,7 +167,7 @@
 
 
 (comment
-  (str (:out-dir env) (create-path (get-article "CL723330G_1.jpg")) "CL723330G_1.jpg")
+  (str (:out-path env) (create-path (get-article "CL723330G_1.jpg")) "CL723330G_1.jpg")
   (valid-regular-file-name? "CL723330G_1.jpg")
   (valid-regular-file-name? "107.97.1_2.png")
   (valid-file-name-MAIL_ALL? "CL723_MAIL_ALL_1.jpg")
