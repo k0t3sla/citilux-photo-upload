@@ -125,9 +125,11 @@
       (when (not-empty (:regular-hot-dir files))
         (doseq [file (:regular-hot-dir files)]
           (if (check-dimm file)
-            (let [out-path (str (:out-path env) (create-path-with-root file "04_SKU_INTERNAL_1_1/"))]
+            (let [out-path-source (str (:out-path env) (create-path-with-root file "03_SOURCE_1_1/"))
+                  out-path (str (:out-path env) (create-path-with-root file "04_SKU_INTERNAL_1_1/"))]
+              (when-not (fs/exists? out-path) (fs/create-dirs out-path-source))
               (when-not (fs/exists? out-path) (fs/create-dirs out-path))
-              (fs/copy file out-path {:replace-existing true})
+              (fs/copy file out-path-source {:replace-existing true})
               (move-and-compress file "04_SKU_INTERNAL_1_1/"))
             (swap! err-fotos conj file)))
         (add-to-message-log! (notify-msg-create {:files (:regular-hot-dir files) :heading "Загружены фото в папку\n"}))
@@ -138,9 +140,11 @@
       (when (not-empty (:regular-hot-dir-wb files))
         (doseq [file (:regular-hot-dir-wb files)]
           (if (check-dimm file)
-            (let [out-path (str (:out-path env) (create-path-with-root file "04_SKU_INTERNAL_3_4/"))]
+            (let [out-path-source (str (:out-path env) (create-path-with-root file "03_SOURCE_3_4/"))
+                  out-path (str (:out-path env) (create-path-with-root file "04_SKU_INTERNAL_3_4/"))]
+              (when-not (fs/exists? out-path) (fs/create-dirs out-path-source))
               (when-not (fs/exists? out-path) (fs/create-dirs out-path))
-              (fs/copy file out-path {:replace-existing true})
+              (fs/copy file out-path-source {:replace-existing true})
               (move-and-compress file "04_SKU_INTERNAL_3_4/"))
             (swap! err-fotos conj file)))
         (add-to-message-log! (notify-msg-create {:files (:regular-hot-dir files) :heading "Загружены фото в папку\n"}))
