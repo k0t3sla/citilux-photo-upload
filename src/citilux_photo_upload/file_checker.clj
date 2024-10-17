@@ -1,4 +1,5 @@
 (ns citilux-photo-upload.file-checker
+  "Namespace for checking and validating file names according to specific patterns."
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as str]
             [config.core :refer [env]]
@@ -37,129 +38,39 @@
   )
 
 
-(s/def ::file-name_SMM
+(defn create-file-name-spec
+  "Creates a spec for validating file names with a specific suffix."
+  [suffix]
   (s/and
    string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_SMM_(\d+)\.(\w+)" %)]
+   #(let [[_ prefix number ext] (re-matches (re-pattern (str "(.{5}).*_" suffix "_?(\\d+)\\.(\\w+)")) %)]
       (and prefix number ext
            (valid-article-prefix? prefix)
            (s/valid? ::number-part number)
            (s/valid? ::extension ext)))))
 
-(defn valid-file-name-SMM? [file-name]
-  (s/valid? ::file-name_SMM (fs/file-name file-name)))
+(defn create-valid-file-name-fn
+  "Creates a function that validates file names for a specific suffix."
+  [suffix]
+  (fn [file-name]
+    (s/valid? (create-file-name-spec suffix) (fs/file-name file-name))))
 
-(s/def ::file-name_BANNERS
-  (s/and
-   string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_BANNERS_(\d+)\.(\w+)" %)]
-      (and prefix number ext
-           (valid-article-prefix? prefix)
-           (s/valid? ::number-part number)
-           (s/valid? ::extension ext)))))
-
-(defn valid-file-name-BANNERS? [file-name]
-  (s/valid? ::file-name_BANNERS (fs/file-name file-name)))
-
-(s/def ::file-name_WEBBANNERS
-  (s/and
-   string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_WEBBANNERS_(\d+)\.(\w+)" %)]
-      (and prefix number ext
-           (valid-article-prefix? prefix)
-           (s/valid? ::number-part number)
-           (s/valid? ::extension ext)))))
-
-(defn valid-file-name-WEBBANNERS? [file-name]
-  (s/valid? ::file-name_WEBBANNERS (fs/file-name file-name)))
-
-(s/def ::file-name_NEWS
-  (s/and
-   string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_NEWS_(\d+)\.(\w+)" %)]
-      (and prefix number ext
-           (valid-article-prefix? prefix)
-           (s/valid? ::number-part number)
-           (s/valid? ::extension ext)))))
-
-(defn valid-file-name-NEWS? [file-name]
-  (s/valid? ::file-name_NEWS (fs/file-name file-name)))
-
-(s/def ::file-name_MAIL
-  (s/and
-   string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_MAIL_(\d+)\.(\w+)" %)]
-      (and prefix number ext
-           (valid-article-prefix? prefix)
-           (s/valid? ::number-part number)
-           (s/valid? ::extension ext)))))
-
-(defn valid-file-name-MAIL? [file-name]
-  (s/valid? ::file-name_MAIL (fs/file-name file-name)))
-
-(s/def ::file-name_SMM_ALL
-  (s/and
-   string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_SMM_ALL_(\d+)\.(\w+)" %)]
-      (and prefix number ext
-           (valid-article-prefix? prefix)
-           (s/valid? ::number-part number)
-           (s/valid? ::extension ext)))))
-
-(defn valid-file-name-SMM_ALL? [file-name]
-  (s/valid? ::file-name_SMM_ALL (fs/file-name file-name)))
-
-(s/def ::file-name_NEWS_ALL
-  (s/and
-   string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_NEWS_ALL_(\d+)\.(\w+)" %)]
-      (and prefix number ext
-           (valid-article-prefix? prefix)
-           (s/valid? ::number-part number)
-           (s/valid? ::extension ext)))))
-
-(defn valid-file-name-NEWS_ALL? [file-name]
-  (s/valid? ::file-name_NEWS_ALL (fs/file-name file-name)))
-
-(s/def ::file-name_BANNERS_ALL
-  (s/and
-   string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_BANNERS_ALL_(\d+)\.(\w+)" %)]
-      (and prefix number ext
-           (valid-article-prefix? prefix)
-           (s/valid? ::number-part number)
-           (s/valid? ::extension ext)))))
-
-(defn valid-file-name-BANNERS_ALL? [file-name]
-  (s/valid? ::file-name_BANNERS_ALL (fs/file-name file-name)))
-
-(s/def ::file-name_WEBBANNERS_ALL
-  (s/and
-   string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_WEBBANNERS_ALL_(\d+)\.(\w+)" %)]
-      (and prefix number ext
-           (valid-article-prefix? prefix)
-           (s/valid? ::number-part number)
-           (s/valid? ::extension ext)))))
-
-(defn valid-file-name-WEBBANNERS_ALL? [file-name]
-  (s/valid? ::file-name_WEBBANNERS_ALL (fs/file-name file-name)))
-
-(s/def ::file-name_MAIL_ALL
-  (s/and
-   string?
-   #(let [[_ prefix number ext] (re-matches #"(.{5}).*_MAIL_ALL_(\d+)\.(\w+)" %)]
-      (and prefix number ext
-           (valid-article-prefix? prefix)
-           (s/valid? ::number-part number)
-           (s/valid? ::extension ext)))))
-
-(defn valid-file-name-MAIL_ALL? [file-name]
-  (s/valid? ::file-name_MAIL_ALL (fs/file-name file-name)))
+(def valid-file-name-SMM? (create-valid-file-name-fn "SMM"))
+(def valid-file-name-BANNERS? (create-valid-file-name-fn "BANNERS"))
+(def valid-file-name-WEBBANNERS? (create-valid-file-name-fn "WEBBANNERS"))
+(def valid-file-name-NEWS? (create-valid-file-name-fn "NEWS"))
+(def valid-file-name-MAIL? (create-valid-file-name-fn "MAIL"))
+(def valid-file-name-SMM_ALL? (create-valid-file-name-fn "SMM_ALL"))
+(def valid-file-name-NEWS_ALL? (create-valid-file-name-fn "NEWS_ALL"))
+(def valid-file-name-BANNERS_ALL? (create-valid-file-name-fn "BANNERS_ALL"))
+(def valid-file-name-WEBBANNERS_ALL? (create-valid-file-name-fn "WEBBANNERS_ALL"))
+(def valid-file-name-MAIL_ALL? (create-valid-file-name-fn "MAIL_ALL"))
 
 (defn check-abris? [file-name]
   (and (s/valid? ::abris file-name)
-       (not (fs/exists? (str (:out-path env) (create-path (get-article (fs/file-name file-name))) (fs/file-name file-name))))))  
+       (not (fs/exists? (fs/path (:out-path env) 
+                                 (create-path (get-article (fs/file-name file-name))) 
+                                 (fs/file-name file-name))))))  
 
 (defn white? [file-name]
   (s/valid? ::white (fs/file-name file-name)))
