@@ -9,7 +9,7 @@
             [reitit.ring :as ring]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
             [ring.util.response :as response]
-            [citilux-photo-upload.upload :refer [upload-fotos]]
+            [citilux-photo-upload.upload :refer [upload-fotos upload-3d]]
             [citilux-photo-upload.file-checker
              :refer [valid-regular-file-name?
                      valid-file-name-SMM?
@@ -52,7 +52,7 @@
   (reset! all-articles (get-all-articles)))
 
 (defn hotdir-files []
-  (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png}")))
+  (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png,zip}")))
 
 (defn hotdir-files-wb []
   (mapv str (fs/glob (:hot-dir-wb env) "**{.jpg,jpeg,png}")))
@@ -206,12 +206,13 @@
           (move-file file))
         (add-to-message-log! (notify-msg-create {:files (:news-ALL files) :heading "В папку 05_COLLECTIONS_ADV\\02_NEWS/\n"})))
       
-      (when (not-empty (:files-3d files))
-        (doseq [file (:files-3d files)]
+      (when (not-empty (:3d files))
+        (doseq [file (:3d files)]
           (let [out-path (str (:out-path env) (create-path-with-root file "04_SKU_3D_FOR_DESIGNERS/"))]
             (when-not (fs/exists? out-path) (fs/create-dirs out-path))
-            (fs/move file out-path {:atomic-move true})))
-        (add-to-message-log! (notify-msg-create {:files (:files-3d files) :heading "В папку 04_SKU_3D_FOR_DESIGNERS/\n"})))
+            (fs/move file out-path {:replace-existing true :atomic-move true})
+            (upload-3d (get-article file))))
+        (add-to-message-log! (notify-msg-create {:files (:3d files) :heading "В папку 04_SKU_3D_FOR_DESIGNERS/\n"})))
 
       (when (not-empty (:white files))
         (doseq [file (:white files)]
