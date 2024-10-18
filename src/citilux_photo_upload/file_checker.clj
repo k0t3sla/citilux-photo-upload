@@ -4,7 +4,7 @@
             [clojure.string :as str]
             [config.core :refer [env]]
             [babashka.fs :as fs]
-            [citilux-photo-upload.utils :refer [get-article create-path get-all-articles]]))
+            [citilux-photo-upload.utils :refer [get-article create-path create-path-with-root get-all-articles]]))
 
 (def articles (set (get-all-articles)))
 
@@ -87,7 +87,7 @@
 (defn check-abris? [file-name]
   (and (s/valid? ::abris file-name)
        (not (fs/exists? (fs/path (:out-path env) 
-                                 (create-path (get-article (fs/file-name file-name))) 
+                                 (create-path-with-root (get-article (fs/file-name file-name)) "01_PRODUCTION_FILES/01_ABRIS/") 
                                  (fs/file-name file-name))))))  
 
 (defn white? [file-name]
