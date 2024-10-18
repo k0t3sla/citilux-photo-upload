@@ -59,11 +59,12 @@
 
 
 (defn filter-files [{:keys [filter-errors? files]}]
-  (let [correct-arts (filter #(exist? % @all-articles) files)
-        not-correct-arts (filter #(not (exist? % @all-articles)))]
-    (cond
-      filter-errors? not-correct-arts
-      :else correct-arts)))
+  (let [correct-arts (vec (filter #(exist? % @all-articles) files))
+        not-correct-arts (vec (remove #(exist? % @all-articles) files))]
+    (if filter-errors?
+      not-correct-arts
+      correct-arts)))
+
 
 (defn get-files []
   (let [hotdir-files       (hotdir-files)
@@ -353,6 +354,8 @@
            [:head (hiccup/include-css "styles.css")]
            [:main {:class "container mx-auto grid grid-cols-2 gap-4"}
             (when (> (count correct) 0)
+              (doseq [art correct]
+                (upload-fotos art))
               [:div {:class "flex flex-col items-center pt-10"}
                [:p "Фото по этим артикулам отправлены на сервер"]
                [:ul (for [art correct]
@@ -469,6 +472,5 @@
 
 
 
-
-
+  
   )
