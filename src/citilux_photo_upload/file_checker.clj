@@ -33,7 +33,25 @@
 (defn valid-regular-file-name? [file-name]
   (s/valid? ::file-name (fs/file-name file-name)))
 
+(s/def ::file-name-3d
+  (s/and
+   string?
+   #(let [[_ article _ number ext] (re-matches #"(.+)_(3d)_(\d+)\.(\w+)" %)]
+      (and article number ext
+           (s/valid? ::article-part article)
+           (s/valid? ::number-part number)
+           (= ext "zip")))))
+
+(defn valid-3d? [file-name]
+  (s/valid? ::file-name-3d (fs/file-name file-name)))
+
+
+
 (comment
+  
+  (valid-3d? "CL723330G_3d_01.zip")
+
+
   (valid-regular-file-name? "CL723330G_31.jpg")
   )
 

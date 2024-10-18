@@ -34,3 +34,53 @@
                (catch Exception e (send-message! (str "Ошибка при загрузке фото из WEB+1C на сервер: " (.getMessage e)))))]
     (when (not= (:status resp) 200)
       (send-message! (str "проблемы при загрузке фотографий - " art " status = " (:status resp))))))
+
+(defn get-last-modified-file [directory pattern]
+  (->> (fs/glob directory pattern)
+       (sort-by fs/last-modified-time)
+       last
+       str))
+
+(defn upload-3d
+  "Грузим 3d на сервер в base64"
+  [art]
+  (let [directory (str (:out-path env) (create-path-with-root art "04_SKU_3D_FOR_DESIGNERS/"))
+        pattern "**{.zip}"
+        last-modified-file (get-last-modified-file directory pattern)
+        file (when last-modified-file
+                      (encode64 last-modified-file))
+        data {:art art
+              :file-name (fs/file-name last-modified-file)
+              :file-3d file}
+        resp (try
+               (client/post (:url-3d env)
+                            {:headers {"Authorization-Token" (:token-site env)}
+                             :body (ch/generate-string data)
+                             :insecure true
+                             :content-type :json
+                             :conn-timeout 300000})
+               (catch Exception e (send-message! (str "Ошибка при загрузке архива 3D на сервер: " (.getMessage e)))))]
+    (when (not= (:status resp) 200)
+      (send-message! (str "проблемы при загрузке архива 3D - " art " status = " (:status resp))))))
+
+
+(comment
+  (let [art "CL101161"
+        directory (str (:out-path env) (create-path-with-root art "04_SKU_3D_FOR_DESIGNERS/"))
+        pattern "**{.zip}"
+        last-modified-file (get-last-modified-file directory pattern)
+        file (when last-modified-file
+               (encode64 last-modified-file))
+        data {:art art
+              :file-name (fs/file-name last-modified-file)
+              :file-3d file}]
+    (client/post "https://citilux.ru/api/upd/files3d/"
+                 {:headers {"Authorization-Token" (:token-site env)}
+                  :body (ch/generate-string data)
+                  :insecure true
+                  :content-type :json
+                  :conn-timeout 300000}))
+
+  )
+
+

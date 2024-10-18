@@ -22,6 +22,7 @@
                      valid-file-name-BANNERS_ALL?
                      valid-file-name-WEBBANNERS_ALL?
                      valid-file-name-MAIL_ALL?
+                     valid-3d?
                      check-abris?
                      white?]]
             [citilux-photo-upload.utils :refer [notify!
@@ -70,6 +71,7 @@
         abris              (filterv check-abris? hotdir-files)
         white              (filterv white? hotdir-files)
         white-wb           (filterv white? hotdir-files-wb)
+        files-3d           (filterv valid-3d? hotdir-files)
         regular-hot-dir    (vec (remove #(contains? (set (concat abris white)) %) (filterv valid-regular-file-name? hotdir-files)))
         all-valid-wb       (vec (remove #(contains? (set white-wb) %) (filterv valid-regular-file-name? hotdir-files-wb)))
         SMM                (filterv valid-file-name-SMM? hotdir-files)
@@ -83,7 +85,7 @@
         WEBBANNERS_ALL     (filterv valid-file-name-WEBBANNERS_ALL? hotdir-files)
         MAIL_ALL           (filterv valid-file-name-MAIL_ALL? hotdir-files)
         to-upload          (set (mapv get-article (filter valid-regular-file-name? regular-hot-dir)))
-        all-valid (concat regular-hot-dir SMM BANNERS WEBBANNERS NEWS MAIL SMM_ALL
+        all-valid (concat regular-hot-dir SMM BANNERS WEBBANNERS NEWS MAIL SMM_ALL files-3d
                           BANNERS_ALL NEWS_ALL WEBBANNERS_ALL MAIL_ALL abris white)]
     {:err-files (vec (remove #(contains? (set all-valid) %) hotdir-files))
      :err-files-wb (vec (remove #(contains? (set all-valid-wb) %) hotdir-files-wb))
@@ -93,6 +95,7 @@
      :webbanners WEBBANNERS
      :news NEWS
      :mail MAIL
+     :3d files-3d
      :smm-ALL SMM_ALL
      :news-ALL NEWS_ALL
      :banners-ALL BANNERS_ALL
@@ -202,6 +205,13 @@
         (doseq [file (:news-ALL files)]
           (move-file file))
         (add-to-message-log! (notify-msg-create {:files (:news-ALL files) :heading "В папку 05_COLLECTIONS_ADV\\02_NEWS/\n"})))
+      
+      (when (not-empty (:files-3d files))
+        (doseq [file (:files-3d files)]
+          (let [out-path (str (:out-path env) (create-path-with-root file "04_SKU_3D_FOR_DESIGNERS/"))]
+            (when-not (fs/exists? out-path) (fs/create-dirs out-path))
+            (fs/move file out-path {:atomic-move true})))
+        (add-to-message-log! (notify-msg-create {:files (:files-3d files) :heading "В папку 04_SKU_3D_FOR_DESIGNERS/\n"})))
 
       (when (not-empty (:white files))
         (doseq [file (:white files)]
