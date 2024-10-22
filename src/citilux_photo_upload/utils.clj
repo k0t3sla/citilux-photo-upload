@@ -129,7 +129,7 @@
 (defn notify-msg-create
   "Перечисляем фото или видео с их колличеством"
   [{:keys [files heading err?]}]
-  (let [file-types ["jpg" "mp4" "psd" "png"]
+  (let [file-types ["jpg" "mp4" "psd" "png" "zip"]
         msgs (for [file-type file-types]
                (process-files files file-type heading err?))
         msg (str (when heading heading) (apply str msgs))]
