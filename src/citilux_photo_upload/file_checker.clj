@@ -84,11 +84,24 @@
 (def valid-file-name-WEBBANNERS_ALL? (create-valid-file-name-fn "WEBBANNERS_ALL"))
 (def valid-file-name-MAIL_ALL? (create-valid-file-name-fn "MAIL_ALL"))
 
+(defn get-file-name-without-extension [file-path]
+  (-> file-path
+      fs/file-name
+      fs/strip-ext))
+
+(defn abris-file-exists? [path]
+  (let [article (get-article (fs/file-name path))
+        file-name (get-file-name-without-extension path)
+        abris-dir (fs/path (:out-path env)
+                           (create-path-with-root article "01_PRODUCTION_FILES/01_ABRIS/"))
+        png-path (fs/path abris-dir (str file-name ".png"))
+        jpg-path (fs/path abris-dir (str file-name ".jpg"))]
+    (or (fs/exists? png-path)
+        (fs/exists? jpg-path))))
+
 (defn check-abris? [file-name]
   (and (s/valid? ::abris file-name)
-       (not (fs/exists? (fs/path (:out-path env) 
-                                 (create-path-with-root (get-article (fs/file-name file-name)) "01_PRODUCTION_FILES/01_ABRIS/") 
-                                 (fs/file-name file-name))))))  
+       (abris-file-exists? file-name)))
 
 (defn white? [file-name]
   (s/valid? ::white (fs/file-name file-name)))
