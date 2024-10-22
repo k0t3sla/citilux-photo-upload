@@ -37,7 +37,7 @@
 (s/def ::file-name-3d
   (s/and
    string?
-   #(let [[_ article _ number ext] (re-matches #"(.+)_(3d)_(\d+)\.(\w+)" %)]
+   #(let [[_ article _ number ext] (re-matches #"(.+)_(3d|3D)_(\d+)\.(\w+)" %)]
       (and article number ext
            (s/valid? ::article-part article)
            (s/valid? ::number-part number)
