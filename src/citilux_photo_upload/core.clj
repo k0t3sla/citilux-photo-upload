@@ -40,16 +40,13 @@
                                                 send-message!
                                                 article-stat-handler
                                                 general-stat-handler
-                                                get-all-articles]])
+                                                all-articles
+                                                update-articles!]])
   (:gen-class))
 
 (set! *warn-on-reflection* true)
 (def blocked (atom false))
 
-(def all-articles (atom []))
-(defn update-articles! []
-  (println "updating articles")
-  (reset! all-articles (get-all-articles)))
 
 (defn hotdir-files []
   (mapv str (fs/glob (:hot-dir env) "**{.jpg,jpeg,png,zip}")))

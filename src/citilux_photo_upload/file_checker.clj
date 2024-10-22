@@ -4,8 +4,8 @@
             [clojure.string :as str]
             [config.core :refer [env]]
             [babashka.fs :as fs]
-            [citilux-photo-upload.core :refer [all-articles]]
-            [citilux-photo-upload.utils :refer [get-article create-path create-path-with-root get-all-articles]]))
+            [citilux-photo-upload.utils :refer [get-article create-path create-path-with-root 
+                                                all-articles get-all-articles]]))
 
 (def articles (set (get-all-articles)))
 

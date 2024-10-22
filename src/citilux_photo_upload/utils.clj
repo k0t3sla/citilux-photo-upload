@@ -150,7 +150,10 @@
                            (str/includes? % "_(GroupPack)")
                            (str/starts-with? % "BOX_"))) resp)))
 
-
+(def all-articles (atom []))
+(defn update-articles! []
+  (println "updating articles")
+  (reset! all-articles (get-all-articles)))
 
 (defn report-imgs-1c! [arts]
   (when-not (= "OK" (-> (client/post (str (:root-1c-endpoint env) (:imgs-report-1c env))
