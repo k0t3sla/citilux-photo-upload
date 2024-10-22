@@ -4,15 +4,16 @@
             [clojure.string :as str]
             [config.core :refer [env]]
             [babashka.fs :as fs]
+            [citilux-photo-upload.core :refer [all-articles]]
             [citilux-photo-upload.utils :refer [get-article create-path create-path-with-root get-all-articles]]))
 
 (def articles (set (get-all-articles)))
 
 (defn valid-article? [article]
-  (contains? articles article))
+  (contains? (set @all-articles) article))
 
 (defn valid-article-prefix? [prefix]
-  (some #(str/starts-with? % prefix) articles))
+  (some #(str/starts-with? % prefix) @all-articles))
 
 (s/def ::article-part (s/and string? valid-article?))
 (s/def ::number-part (s/and string? #(re-matches #"\d+" %)))
