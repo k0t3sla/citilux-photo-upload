@@ -24,6 +24,7 @@
         data {:art art
               :detail detail-foto
               :photos encoded-fotos}
+        _ (println data)
         resp (try
                (client/post (:url env)
                             {:headers {"Authorization-Token" (:token-site env)}
