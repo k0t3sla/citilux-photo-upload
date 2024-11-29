@@ -52,6 +52,7 @@
         data {:art art
               :file-name (fs/file-name last-modified-file)
               :file-3d file}
+        _ (println data)
         resp (try
                (client/post (:url-3d env)
                             {:headers {"Authorization-Token" (:token-site env)}
