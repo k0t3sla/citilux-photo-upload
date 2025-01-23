@@ -10,7 +10,7 @@
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
             [ring.util.response :as response]
             [citilux-photo-upload.upload :refer [upload-fotos upload-3d]]
-            [citilux-photo-upload.manuals :refer [manuals-page reports-page]]
+            [citilux-photo-upload.manuals :refer [manuals-page upload-instructions]]
             [citilux-photo-upload.file-checker
              :refer [valid-regular-file-name?
                      valid-file-name-SMM?
@@ -390,19 +390,9 @@
                   (response/header "content-type" "text/html")))}]
      ["/upload-instructions"
       {:post (fn [request]
-               (-> (reports-page request)
+               (-> (upload-instructions request)
                    (response/response)
                    (response/header "content-type" "text/html")))}] 
-     ["/upload-manuals"
-      {:post (fn [request]
-               (-> (reports-page request)
-                   (response/response)
-                   (response/header "content-type" "text/html")))}]
-     ["/upload-boxes"
-      {:post (fn [request]
-               (-> (reports-page request)
-                   (response/response)
-                   (response/header "content-type" "text/html")))}]
      ["/hot-dir-upload"
       {:post (fn [request]
                (-> (hotdir-handler request)
