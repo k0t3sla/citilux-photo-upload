@@ -58,7 +58,7 @@
 (defn convert-path [windows-path]
   (try
     (-> windows-path
-        (str/replace #"\\diskstation\CATALOG" "/mnt/nas")
+        (str/replace #"\\\\diskstation\\CATALOG" "/mnt/nas")
         (str/replace #"\\" "/"))
     (catch Exception _
       nil)))
