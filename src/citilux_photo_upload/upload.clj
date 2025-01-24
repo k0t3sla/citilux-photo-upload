@@ -4,7 +4,8 @@
             [babashka.fs :as fs]
             [cheshire.core :as ch]
             [config.core :refer [env]]
-            [citilux-photo-upload.utils :refer [create-path-with-root send-message!]])
+            [citilux-photo-upload.utils :refer [create-path-with-root send-message!]]
+            [clojure.string :as str])
   (:gen-class))
 
 (defn encode64 [path]
@@ -51,8 +52,7 @@
                       (encode64 last-modified-file))
         data {:art art
               :file-name (fs/file-name last-modified-file)
-              :file-3d file}
-        _ (println data)
+              :file-3d file} 
         resp (try
                (client/post (:url-3d env)
                             {:headers {"Authorization-Token" (:token-site env)}
@@ -73,7 +73,7 @@
           
           instructions-data (for [{:keys [article path]} instructions]
                               {:art article
-                               :file-name (fs/file-name path)  ;; Добавляем имя файла
+                               :file-name (fs/file-name path)
                                :instruction (encode-file path)})
 
           assembly-data (for [{:keys [article path]} assembly]
@@ -85,8 +85,7 @@
                 :assembly assembly-data}
           
           
-          _ (println "instructions-data" instructions-data)
-          _ (println "assembly-data" assembly-data)
+          _ (println "instructions-data" (ch/generate-string data))
           
           resp (try
                  (client/post (:url-manuals env)
