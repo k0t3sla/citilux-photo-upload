@@ -5,9 +5,6 @@
             [citilux-photo-upload.upload :refer [upload-manuals]]
             [citilux-photo-upload.utils :refer [exist? all-articles create-path-with-root]]))
 
-;; Объявляем атом на уровне пространства имен
-(def upload-response (atom nil))
-
 (defn manuals-page [_]
   (hiccup/html5
    [:body
@@ -103,9 +100,7 @@
         (doseq [{:keys [article path]} valid-boxes]
           (copy-manuals article path "01_PRODUCTION_FILES/02_BOX")))
       
-      ;; Сохраняем ответ в атом
-      (reset! upload-response (upload-manuals valid-instructions valid-assembly))
-      (println "upload-response" @upload-response))
+      (upload-manuals valid-instructions valid-assembly))
 
     (hiccup/html5
      [:body
@@ -169,13 +164,7 @@
                [:td (if valid?
                       [:span {:class "text-green-600"} "✓ Валидно"]
                       [:div {:class "text-red-600"}
-                       (str/join ", " errors)])]])]]])
-       
-       [:div {:class "response-debug mt-4 p-4 bg-gray-100 rounded"}
-        [:h3 {:class "text-lg font-semibold mb-2"} "Ответ сервера:"]
-        [:pre {:class "whitespace-pre-wrap"} (when @upload-response (pr-str @upload-response))]
-        ;; Очищаем ответ после отображения
-        (when @upload-response (reset! upload-response nil))]
+                       (str/join ", " errors)])]])]]]) 
 
        [:div {:class "flex justify-between mt-8"}
         [:a {:href "/manuals" :class "btn btn-primary"} "Вернуться назад"]
