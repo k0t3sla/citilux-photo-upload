@@ -84,6 +84,8 @@
           data {:instructions instructions-data
                 :assembly assembly-data}
           
+          _ (println data)
+          
           resp (try
                  (client/post (:url-manuals env)
                             {:headers {"Authorization-Token" (:token-site env)}
