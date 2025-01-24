@@ -47,7 +47,7 @@
   [art path-to-file path-to-save]
   (let [out-path (create-path-with-root art path-to-save)
         parent-dir (fs/parent out-path)]
-    (println "copying manuals" art path-to-file path-to-save)
+    (println "copying manuals" art path-to-file out-path)
     (fs/create-dirs parent-dir)  ; Создаём все необходимые директории
     (fs/copy path-to-file out-path {:replace-existing true})))
 
