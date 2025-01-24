@@ -48,7 +48,7 @@
   "Копируем файлы на файловую систему
    :out-path - потом бренд 01_PRODUCTION_FILES\\03_MANUAL"
   [art path-to-file path-to-save]
-  (let [out-path (str (:out-path env) (create-path-with-root art path-to-save) "/" (fs/file-name path-to-file))
+  (let [out-path (str (:out-path env) (create-path-with-root art path-to-save) (fs/file-name path-to-file))
         parent-dir (fs/parent out-path)]
     (println "copying manuals" art path-to-file out-path)
     (fs/create-dirs parent-dir)  ; Создаём все необходимые директории
