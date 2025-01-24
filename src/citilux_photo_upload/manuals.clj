@@ -1,9 +1,12 @@
 (ns citilux-photo-upload.manuals
-  (:require [clojure.string :as str]
-            [hiccup.page :as hiccup]
-            [babashka.fs :as fs]
-            [citilux-photo-upload.upload :refer [upload-manuals]]
-            [citilux-photo-upload.utils :refer [exist? all-articles create-path-with-root]]))
+  (:require
+   [babashka.fs :as fs]
+   [citilux-photo-upload.upload :refer [upload-manuals]]
+   [citilux-photo-upload.utils :refer [all-articles create-path-with-root
+                                       exist?]]
+   [clojure.string :as str]
+   [config.core :refer [env]]
+   [hiccup.page :as hiccup]))
 
 (defn manuals-page [_]
   (hiccup/html5
@@ -45,7 +48,7 @@
   "Копируем файлы на файловую систему
    :out-path - потом бренд 01_PRODUCTION_FILES\\03_MANUAL"
   [art path-to-file path-to-save]
-  (let [out-path (create-path-with-root art path-to-save)
+  (let [out-path (str (:out-path env) (create-path-with-root art path-to-save))
         parent-dir (fs/parent out-path)]
     (println "copying manuals" art path-to-file out-path)
     (fs/create-dirs parent-dir)  ; Создаём все необходимые директории
