@@ -73,19 +73,16 @@
           
           instructions-data (for [{:keys [article path]} instructions]
                               {:art article
-                               :file-name (fs/file-name path)
+                               :filename (fs/file-name path)
                                :instruction (encode-file path)})
 
           assembly-data (for [{:keys [article path]} assembly]
                           {:art article
-                           :file-name (fs/file-name path)  ;; Добавляем имя файла
+                           :filename (fs/file-name path)  ;; Добавляем имя файла
                            :assembly (encode-file path)})
 
           data {:instructions instructions-data
                 :assembly assembly-data}
-          
-          
-          _ (println "instructions-data" (ch/generate-string data))
           
           resp (try
                  (client/post (:url-manuals env)
