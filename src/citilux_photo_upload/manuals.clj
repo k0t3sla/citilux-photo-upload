@@ -48,7 +48,7 @@
   "Копируем файлы на файловую систему
    :out-path - потом бренд 01_PRODUCTION_FILES\\03_MANUAL"
   [art path-to-file path-to-save]
-  (let [out-path (str (:out-path env) (create-path-with-root art path-to-save))
+  (let [out-path (str (:out-path env) (create-path-with-root art path-to-save) "/" (fs/file-name path-to-file))
         parent-dir (fs/parent out-path)]
     (println "copying manuals" art path-to-file out-path)
     (fs/create-dirs parent-dir)  ; Создаём все необходимые директории
@@ -95,13 +95,13 @@
     (when (or (seq valid-instructions) (seq valid-assembly) (seq valid-boxes))
       (when (seq valid-instructions)
         (doseq [{:keys [article path]} valid-instructions]
-          (copy-manuals article path "01_PRODUCTION_FILES/03_MANUAL")))
+          (copy-manuals article path "01_PRODUCTION_FILES/03_MANUAL/")))
       (when (seq valid-assembly)
         (doseq [{:keys [article path]} valid-assembly]
-          (copy-manuals article path "01_PRODUCTION_FILES/03_ASSEMBLY")))
+          (copy-manuals article path "01_PRODUCTION_FILES/03_ASSEMBLY/")))
       (when (seq valid-boxes)
         (doseq [{:keys [article path]} valid-boxes]
-          (copy-manuals article path "01_PRODUCTION_FILES/02_BOX")))
+          (copy-manuals article path "01_PRODUCTION_FILES/02_BOX/")))
       
       (upload-manuals valid-instructions valid-assembly))
 
