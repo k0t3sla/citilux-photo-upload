@@ -84,7 +84,7 @@
           data {:instructions instructions-data
                 :assembly assembly-data}
           
-          _ (println data)
+          _ (println instructions)
           
           resp (try
                  (client/post (:url-manuals env)
