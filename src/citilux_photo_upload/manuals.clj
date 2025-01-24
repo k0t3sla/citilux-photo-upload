@@ -104,7 +104,8 @@
           (copy-manuals article path "01_PRODUCTION_FILES/02_BOX")))
       
       ;; Сохраняем ответ в атом
-      (reset! upload-response (upload-manuals valid-instructions valid-assembly)))
+      (reset! upload-response (upload-manuals valid-instructions valid-assembly))
+      (println "upload-response" @upload-response))
 
     (hiccup/html5
      [:body
