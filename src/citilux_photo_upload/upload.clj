@@ -91,7 +91,7 @@
           data {:instructions instructions-data
                 :assembly assembly-data}
           
-          (logExtracted data)
+          _ (logExtracted data)
           
           resp (try
                  (client/post (:url-manuals env)
