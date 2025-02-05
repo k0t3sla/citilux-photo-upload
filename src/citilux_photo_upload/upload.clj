@@ -64,6 +64,13 @@
     (when (not= (:status resp) 200)
       (send-message! (str "проблемы при загрузке архива 3D - " art " status = " (:status resp))))))
 
+(defn logExtracted [data]
+  (let [all-items   (concat (:instructions data) (:assembly data))
+        filtered    (doall (map #(select-keys % [:art :filename]) all-items))
+        log-output  (str "\n" (with-out-str (clojure.pprint/pprint filtered)) "\n")]
+    (clojure.pprint/pprint filtered)
+    (spit "uploaded-files.txt" log-output :append true)))
+
 (defn upload-manuals
   "Загружаем инструкции и схемы сборки на сервер"
   [instructions assembly]
@@ -83,6 +90,8 @@
 
           data {:instructions instructions-data
                 :assembly assembly-data}
+          
+          (logExtracted data)
           
           resp (try
                  (client/post (:url-manuals env)
@@ -113,6 +122,26 @@
                   :insecure true
                   :content-type :json
                   :conn-timeout 300000}))
+
+
+
+  (def instructions-data
+    [{:art         "CL101161"
+      :filename    "instruction.pdf"
+      :instruction "instruction.pdf"}])
+
+  (def assembly-data
+    [{:art      "CL101161"
+      :filename "assembly.pdf"
+      :assembly "assembly.pdf"}])
+
+  (def data
+    {:instructions instructions-data
+     :assembly     assembly-data}) 
+
+  (logExtracted data)
+
+
 
   )
 
