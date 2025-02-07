@@ -18,6 +18,9 @@
   "Грузим фото на сервер в base64"
   [art]
   (let [files (sort (mapv str (fs/glob (str (:out-path env) (create-path-with-root art "04_SKU_INTERNAL_1_1/")) "**{.jpeg,jpg}")))
+        
+        _ (println "files" files)
+        
         detail-foto (when (> (count files) 0)
                       (encode64 (first files)))
         encoded-fotos (when (> (count files) 1) ;; остальные фото исключая детальную
