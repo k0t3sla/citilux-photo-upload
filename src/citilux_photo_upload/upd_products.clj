@@ -27,8 +27,8 @@
   "Фильтрует артикулы на корректные и некорректные"
   [{:keys [filter-errors? articles]}] 
   (let [check-article (fn [article]
-                        (if (<= (count article) 5)
-                          ;; Для коротких артикулов (5 символов и меньше) считаем невалидными
+                        (if (<= (count article) 4)
+                          ;; Для коротких артикулов (4 символов и меньше) считаем невалидными
                           false
                           ;; Для длинных артикулов проверяем есть ли артикулы, начинающиеся с введенной подстроки
                           (some #(str/starts-with? % article) @all-articles)))
@@ -84,8 +84,8 @@
       [:h3 {:class "text-lg font-semibold text-red-700 mb-2"} "Артикулы с ошибками валидации:"]
       [:ul {:class "list-disc list-inside text-red-600"}
        (for [article error-articles]
-         (let [reason (if (<= (count article) 5)
-                        "слишком короткий (нужно больше 5 символов)"
+         (let [reason (if (<= (count article) 4)
+                        "слишком короткий (нужно больше 4 символов)"
                         "не найдено артикулов, начинающихся с этой подстроки")]
            [:li article " - " reason]))]])
    
