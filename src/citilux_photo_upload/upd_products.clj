@@ -1,14 +1,12 @@
 (ns citilux-photo-upload.upd-products
   (:require
-   [babashka.fs :as fs]
-   [citilux-photo-upload.upload :refer [upload-manuals]]
-   [citilux-photo-upload.utils :refer [all-articles create-path-with-root
+   [citilux-photo-upload.utils :refer [all-articles
                                        exist? split-articles]]
    [clojure.string :as str]
    [config.core :refer [env]]
    [hiccup.page :as hiccup]
    [clj-http.client :as client]
-   [cheshire.core :refer [parse-string generate-string]]))
+   [cheshire.core :refer [parse-string]]))
 
 (defn upd-products-page [_]
   (hiccup/html5
@@ -25,38 +23,42 @@
       
       [:button {:type "submit" :class "btn btn-primary btn-sm w-40"} "Обновить продукты"]]]]))
 
-(defn filter-articles [{:keys [filter-errors? articles]}]
+(defn filter-articles 
   "Фильтрует артикулы на корректные и некорректные"
+  [{:keys [filter-errors? articles]}] 
   (let [correct-arts (vec (filter #(exist? % @all-articles) articles))
         not-correct-arts (vec (remove #(exist? % @all-articles) articles))]
     (if filter-errors?
       not-correct-arts
       correct-arts)))
 
-(defn parse-articles [content]
+(defn parse-articles
   "Парсит строку с артикулами, разделенными запятыми, пробелами или переносами строк"
+  [content]
   (->> content
        split-articles
        (map str/trim)
        (remove str/blank?)
        vec))
 
-(defn update-product-on-server [article]
+(defn update-product-on-server
   "Отправляет запрос на обновление одного продукта"
+  [article] 
   (try
     (let [response (client/post (str (:test-site env) "/api/update-products")
-                               {:headers {:authorization (str "Bearer " (:test-site-token env))}
-                                :content-type :json
-                                :form-params {:article article}
-                                :throw-exceptions false})]
+                                {:headers {:authorization (str "Bearer " (:test-site-token env))}
+                                 :content-type :json
+                                 :form-params {:article article}
+                                 :throw-exceptions false})]
       (if (= 200 (:status response))
         (parse-string (:body response) true)
         {:errors [{:article article :reason (str "HTTP Error: " (:status response))}]}))
     (catch Exception e
       {:errors [{:article article :reason (str "Exception: " (.getMessage e))}]})))
 
-(defn update-products-batch [articles]
+(defn update-products-batch
   "Обновляет список продуктов и собирает результаты"
+  [articles] 
   (let [results (map update-product-on-server articles)]
     (reduce (fn [acc result]
               {:updated (concat (:updated acc) (:updated result))
@@ -64,8 +66,9 @@
             {:updated [] :errors []}
             results)))
 
-(defn display-results [results correct-articles error-articles]
+(defn display-results 
   "Отображает результаты обновления продуктов"
+  [results _ error-articles]
   [:div {:class "container mx-auto p-4"}
    [:h2 {:class "text-xl font-semibold mb-4"} "Результаты обновления продуктов"]
    
