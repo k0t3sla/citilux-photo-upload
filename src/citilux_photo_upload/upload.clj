@@ -17,7 +17,7 @@
 (defn upload-fotos
   "Грузим фото на сервер в base64"
   [art]
-  (let [files (sort (mapv str (fs/glob (str (:out-path env) (create-path-with-root art "04_SKU_INTERNAL_1_1/")) "**{.jpeg,jpg}")))
+  (let [files (sort (mapv str (fs/glob (str (:out-path env) (create-path-with-root art "04_SKU_INTERNAL_1_1/")) "**{.jpeg,jpg,png}")))
         
         _ (println "files" files)
         

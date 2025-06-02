@@ -333,6 +333,10 @@
   
   (count (get-all-articles))
 
+  (exist? "CL712S180" (get-all-articles))
+
+  (clojure.pprint/pprint (get-all-articles))
+
   ;;;; DIR GENERATOR
 
   (take 15 (reverse (get-all-articles)))

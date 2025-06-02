@@ -11,6 +11,7 @@
             [ring.util.response :as response]
             [citilux-photo-upload.upload :refer [upload-fotos upload-3d]]
             [citilux-photo-upload.manuals :refer [manuals-page upload-instructions]]
+            [citilux-photo-upload.upd-products :refer [upd-products-page upd-products]]
             [citilux-photo-upload.file-checker
              :refer [valid-regular-file-name?
                      valid-file-name-SMM?
@@ -292,7 +293,10 @@
       [:div {:class "flex flex-col items-center"} [:form {:method "POST" :action "/upload"}
                                                    [:textarea {:rows 10 :cols 45 :class "w-full h-20 p-2 textarea textarea-primary" :name "arts" :required true :placeholder "CL123456, CL234567"}]
                                                    [:div {:class "flex flex-col items-center pt-10"} [:button {:type "submit" :class "btn btn-accent"} "Загрузить на сервер"]]]]
-      [:div {:class "flex flex-col items-center pt-10"} [:button {:hx-post "/update" :hx-swap "outerHTML" :class "btn btn-success"} "Обновить список артикулов из 1с"]]])))
+      [:div {:class "flex flex-col items-center pt-10"} 
+       [:button {:hx-post "/update" :hx-swap "outerHTML" :class "btn btn-success mb-4"} "Обновить список артикулов из 1с"]
+       [:a {:href "/upd-products" :class "btn btn-info mb-4"} "Обновить продукты на сервере"]
+       [:a {:href "/manuals" :class "btn btn-secondary"} "Загрузить инструкции"]]])))
 
 (defn hotdir-handler [_]
   (try
@@ -388,6 +392,15 @@
               (-> (manuals-page request)
                   (response/response)
                   (response/header "content-type" "text/html")))}]
+     ["/upd-products"
+      {:get (fn [request]
+              (-> (upd-products-page request)
+                  (response/response)
+                  (response/header "content-type" "text/html")))
+       :post (fn [request]
+               (-> (upd-products request)
+                   (response/response)
+                   (response/header "content-type" "text/html")))}]
      ["/upload-instructions"
       {:post (fn [request]
                (-> (upload-instructions request)
@@ -462,6 +475,8 @@
 
 (comment
   (update-articles!)
+
+  
 
   (get-files)
   (send-files!)
