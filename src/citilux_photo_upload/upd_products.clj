@@ -8,20 +8,41 @@
    [clj-http.client :as client]
    [cheshire.core :refer [parse-string]]))
 
+(defn update-sitemap
+  "Отправляет запрос на обновление sitemap"
+  []
+  (try
+    (let [response (client/post (str (:test-site env) "/api/sitemap")
+                               {:query-params {:key (:sitemap-api-key env)}
+                                :throw-exceptions false})]
+      (if (= 200 (:status response))
+        {:success true :message "Sitemap успешно обновлен"}
+        {:success false :message (str "HTTP Error: " (:status response))}))
+    (catch Exception e
+      {:success false :message (str "Exception: " (.getMessage e))})))
+
 (defn upd-products-page [_]
   (hiccup/html5
    [:body
     [:head (hiccup/include-css "styles.css" "additional.css")]
     [:head (hiccup/include-js "htmx.js")]
     [:div {:class "container mx-auto p-4"}
-     [:form {:method "POST" :action "/upd-products" :class "flex flex-col items-center"}
+     [:form {:method "POST" :action "/upd-products" :class "flex flex-col items-center mb-6"}
       [:div
        [:h2 {:class "text-xl font-semibold mb-2"} "Обновление продуктов"]
        [:textarea {:class "w-[80vw] h-[23vh] p-4 mb-4 border rounded textarea textarea-primary"
                   :name "products"
-                  :placeholder "Введите артикулы для обновления.\nФормат: CL123456, CL703 или через перенос строки\nПример: CL714A40G (точный), CL703 (по подстроке)\n\nТребования: больше 5 символов и должны существовать артикулы, начинающиеся с введенной подстроки"}]] 
+                  :placeholder "Введите артикулы для обновления.\nФормат: CL123456, CL703 или через перенос строки\nПример: CL714A40G (точный), CL703 (по подстроке)\n\nТребования: больше 4 символов и должны существовать артикулы, начинающиеся с введенной подстроки"}]] 
       
-      [:button {:type "submit" :class "btn btn-primary btn-sm w-40"} "Обновить продукты"]]]]))
+      [:button {:type "submit" :class "btn btn-primary btn-sm w-40"} "Обновить продукты"]]
+     
+     [:div {:class "divider"}]
+     
+     [:div {:class "flex flex-col items-center"}
+      [:h2 {:class "text-xl font-semibold mb-4"} "Обновление Sitemap"]
+      [:form {:method "POST" :action "/upd-products" :class "flex flex-col items-center"}
+       [:input {:type "hidden" :name "action" :value "sitemap"}]
+       [:button {:type "submit" :class "btn btn-secondary btn-sm w-40"} "Обновить Sitemap"]]]]]))
 
 (defn filter-articles 
   "Фильтрует артикулы на корректные и некорректные"
@@ -110,32 +131,52 @@
 
 (defn upd-products [request]
   (try
-    (let [products-content (get-in request [:params :products])
-          _ (println "Получен контент:" products-content)
-          
-          articles (parse-articles products-content)
-          _ (println "Распарсенные артикулы:" articles)
-          
-          error-articles (filter-articles {:filter-errors? true :articles articles})
-          correct-articles (filter-articles {:filter-errors? false :articles articles})
-          _ (println "Корректные артикулы:" correct-articles)
-          _ (println "Некорректные артикулы:" error-articles)]
-      
-      (if (empty? correct-articles)
-        ;; Если нет корректных артикулов
-        (hiccup/html5
-         [:body
-          [:head (hiccup/include-css "styles.css" "additional.css")]
-          (display-results {:updated [] :errors []} [] error-articles)])
-        
-        ;; Обновляем корректные артикулы
-        (let [results (update-products-batch correct-articles)
-              _ (println "Результаты обновления:" results)]
-          
+    (let [action (get-in request [:params :action])]
+      (if (= action "sitemap")
+        ;; Обработка обновления sitemap
+        (let [result (update-sitemap)
+              _ (println "Результат обновления sitemap:" result)]
           (hiccup/html5
            [:body
             [:head (hiccup/include-css "styles.css" "additional.css")]
-            (display-results results correct-articles error-articles)]))))
+            [:div {:class "container mx-auto p-4"}
+             (if (:success result)
+               [:div {:class "p-4 bg-green-100 border border-green-300 rounded"}
+                [:h2 {:class "text-lg font-semibold text-green-700"} "Успешно"]
+                [:p {:class "text-green-600"} (:message result)]]
+               [:div {:class "p-4 bg-red-100 border border-red-300 rounded"}
+                [:h2 {:class "text-lg font-semibold text-red-700"} "Ошибка"]
+                [:p {:class "text-red-600"} (:message result)]])
+             [:div {:class "mt-4 flex justify-center"}
+              [:a {:href "/upd-products" :class "btn btn-primary"} "Вернуться к форме"]]]]))
+        
+        ;; Обработка обновления продуктов (оригинальная логика)
+        (let [products-content (get-in request [:params :products])
+              _ (println "Получен контент:" products-content)
+              
+              articles (parse-articles products-content)
+              _ (println "Распарсенные артикулы:" articles)
+              
+              error-articles (filter-articles {:filter-errors? true :articles articles})
+              correct-articles (filter-articles {:filter-errors? false :articles articles})
+              _ (println "Корректные артикулы:" correct-articles)
+              _ (println "Некорректные артикулы:" error-articles)]
+          
+          (if (empty? correct-articles)
+            ;; Если нет корректных артикулов
+            (hiccup/html5
+             [:body
+              [:head (hiccup/include-css "styles.css" "additional.css")]
+              (display-results {:updated [] :errors []} [] error-articles)])
+            
+            ;; Обновляем корректные артикулы
+            (let [results (update-products-batch correct-articles)
+                  _ (println "Результаты обновления:" results)]
+              
+              (hiccup/html5
+               [:body
+                [:head (hiccup/include-css "styles.css" "additional.css")]
+                (display-results results correct-articles error-articles)]))))))
     
     (catch Exception e
       (println "Ошибка в upd-products:" (.getMessage e))
