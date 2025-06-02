@@ -19,15 +19,21 @@
        [:h2 {:class "text-xl font-semibold mb-2"} "Обновление продуктов"]
        [:textarea {:class "w-[80vw] h-[23vh] p-4 mb-4 border rounded textarea textarea-primary"
                   :name "products"
-                  :placeholder "Введите артикулы для обновления.\nФормат: CL123456, CL223456 или через перенос строки\nПример: CL713, CL714A40G"}]] 
+                  :placeholder "Введите артикулы для обновления.\nФормат: CL123456, CL703 или через перенос строки\nПример: CL714A40G (точный), CL703 (по подстроке)\n\nТребования: больше 5 символов и должны существовать артикулы, начинающиеся с введенной подстроки"}]] 
       
       [:button {:type "submit" :class "btn btn-primary btn-sm w-40"} "Обновить продукты"]]]]))
 
 (defn filter-articles 
   "Фильтрует артикулы на корректные и некорректные"
   [{:keys [filter-errors? articles]}] 
-  (let [correct-arts (vec (filter #(exist? % @all-articles) articles))
-        not-correct-arts (vec (remove #(exist? % @all-articles) articles))]
+  (let [check-article (fn [article]
+                        (if (<= (count article) 5)
+                          ;; Для коротких артикулов (5 символов и меньше) считаем невалидными
+                          false
+                          ;; Для длинных артикулов проверяем есть ли артикулы, начинающиеся с введенной подстроки
+                          (some #(str/starts-with? % article) @all-articles)))
+        correct-arts (vec (filter check-article articles))
+        not-correct-arts (vec (remove check-article articles))]
     (if filter-errors?
       not-correct-arts
       correct-arts)))
@@ -78,7 +84,10 @@
       [:h3 {:class "text-lg font-semibold text-red-700 mb-2"} "Артикулы с ошибками валидации:"]
       [:ul {:class "list-disc list-inside text-red-600"}
        (for [article error-articles]
-         [:li article " - артикул не найден в базе данных"])]])
+         (let [reason (if (<= (count article) 5)
+                        "слишком короткий (нужно больше 5 символов)"
+                        "не найдено артикулов, начинающихся с этой подстроки")]
+           [:li article " - " reason]))]])
    
    ;; Показываем успешно обновленные
    (when (not-empty (:updated results))
