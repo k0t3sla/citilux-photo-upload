@@ -11,7 +11,7 @@
             [ring.util.response :as response]
             [citilux-photo-upload.upload :refer [upload-fotos upload-3d]]
             [citilux-photo-upload.manuals :refer [manuals-page upload-instructions]]
-            [citilux-photo-upload.upd-products :refer [upd-products-page upd-products]]
+            [citilux-photo-upload.upd-products :refer [upd-products-page upd-products reindex-site!]]
             [citilux-photo-upload.file-checker
              :refer [valid-regular-file-name?
                      valid-file-name-SMM?
@@ -296,6 +296,7 @@
       [:div {:class "flex flex-col items-center pt-10"} 
        [:button {:hx-post "/update" :hx-swap "outerHTML" :class "btn btn-success mb-4"} "Обновить список артикулов из 1с"]
        [:a {:href "/upd-products" :class "btn btn-info mb-4"} "Обновить продукты на сервере"]
+       [:a {:href "/reindex" :class "btn btn-secondary mb-4"} "Переиндексировать сайт"]
        [:a {:href "/manuals" :class "btn btn-secondary"} "Загрузить инструкции"]]])))
 
 (defn hotdir-handler [_]
@@ -379,12 +380,27 @@
               [:h2 e]
               [:a {:href "/" :class "btn btn-success"} "Вернутся на главную"]]])))))
 
+(defn reindex-handler [_]
+  (try (reindex-site!)
+       (str
+        (h/html
+         [:h2 "Успешно переиндексирован сайт"]
+         [:a {:href "/" :class "btn btn-success"} "Вернутся на главную"]))
+       (catch Exception e
+         (str [:h2 "Ошибка"]
+              [:h3 e]))))
+
 (def handler
   (ring/ring-handler
    (ring/router
     [["/"
       {:get (fn [request]
               (-> (form-page request)
+                  (response/response)
+                  (response/header "content-type" "text/html")))}]
+     ["/reindex"
+      {:get (fn [request]
+              (-> (reindex-handler request)
                   (response/response)
                   (response/header "content-type" "text/html")))}]
      ["/manuals"
@@ -405,7 +421,7 @@
       {:post (fn [request]
                (-> (upload-instructions request)
                    (response/response)
-                   (response/header "content-type" "text/html")))}] 
+                   (response/header "content-type" "text/html")))}]
      ["/hot-dir-upload"
       {:post (fn [request]
                (-> (hotdir-handler request)
@@ -437,9 +453,9 @@
                    (response/header "content-type" "text/html")))}]
      ["/create-dirs"
       {:get (fn [request]
-               (-> (create-dirs-handler request)
-                   (response/response)
-                   (response/header "content-type" "text/html")))}]])))
+              (-> (create-dirs-handler request)
+                  (response/response)
+                  (response/header "content-type" "text/html")))}]])))
 
 (defmethod response/resource-data :resource
   [^java.net.URL url]
@@ -476,7 +492,7 @@
 (comment
   (update-articles!)
 
-  
+
 
   (get-files)
   (send-files!)
@@ -485,15 +501,9 @@
 
 
   (copy-abris (first (:abris (get-files))))
-  
+
   (first (:abris (get-files)))
 
   (create-path-with-root "/home/k0t3sla/TMP/HOT_DIR/CL237B310_00.jpg" "04_SKU_PNG_WHITE/")
 
-  (copy-abris "/home/k0t3sla/TMP/HOT_DIR/CL237B310_31.jpg")
-
-
-
-
-  
-  )
+  (copy-abris "/home/k0t3sla/TMP/HOT_DIR/CL237B310_31.jpg"))

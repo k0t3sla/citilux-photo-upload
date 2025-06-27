@@ -8,6 +8,14 @@
    [clj-http.client :as client]
    [cheshire.core :refer [parse-string]]))
 
+(defn reindex-site!
+  []
+  (let [resp (client/post
+              "https://test.citilux.ru/api/reindex"
+              {:headers {"Authorization" (str "Bearer " (:token-site env))
+                         "Content-Type" "application/json"}})]
+    (println "resp: " resp)))
+
 (defn update-sitemap
   "Отправляет запрос на обновление sitemap"
   []
