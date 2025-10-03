@@ -150,10 +150,31 @@
                            (str/includes? % "_(GroupPack)")
                            (str/starts-with? % "BOX_"))) resp)))
 
+(def additional-articles ["CL108823"
+                          "CL136131"
+                          "CL138141"
+                          "CL138161"
+                          "CL138181"
+                          "CL140313"
+                          "CL143181"
+                          "CL143311"
+                          "CL145131"
+                          "CL145132"
+                          "CL145312"
+                          "CL146182"
+                          "CL146311"
+                          "CL148141"
+                          "CL149311"
+                          "CL149321"
+                          "CL150141"
+                          "CL154151"
+                          "CL159312"
+                          "CL160263"])
+
 (def all-articles (atom []))
 (defn update-articles! []
   (println "updating articles")
-  (reset! all-articles (get-all-articles)))
+  (reset! all-articles (concat (get-all-articles) additional-articles)))
 
 (defn report-imgs-1c! [arts]
   (when-not (= "OK" (-> (client/post (str (:root-1c-endpoint env) (:imgs-report-1c env))

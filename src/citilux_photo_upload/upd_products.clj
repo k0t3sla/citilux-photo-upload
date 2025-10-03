@@ -11,7 +11,7 @@
 (defn reindex-site!
   []
   (let [resp (client/post
-              "https://test.citilux.ru/api/reindex"
+              "https://citilux.ru/api/reindex"
               {:headers {"Authorization" (str "Bearer " (:token-site env))
                          "Content-Type" "application/json"}})]
     (println "resp: " resp)))
