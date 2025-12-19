@@ -1,11 +1,11 @@
 (ns citilux-photo-upload.upload
   (:require [clj-http.client :as client]
             [clojure.java.io :as io]
+            [clojure.pprint :as pprint]
             [babashka.fs :as fs]
             [cheshire.core :as ch]
             [config.core :refer [env]]
-            [citilux-photo-upload.utils :refer [create-path-with-root send-message!]]
-            [clojure.string :as str])
+            [citilux-photo-upload.utils :refer [create-path-with-root send-message!]])
   (:gen-class))
 
 (defn encode64 [path]
@@ -70,12 +70,13 @@
 (defn logExtracted [data]
   (let [all-items   (concat (:instructions data) (:assembly data))
         filtered    (doall (map #(select-keys % [:art :filename]) all-items))
-        log-output  (str "\n" (with-out-str (clojure.pprint/pprint filtered)) "\n")]
-    (clojure.pprint/pprint filtered)
+        log-output  (str "\n" (with-out-str (pprint/pprint filtered)) "\n")]
+    (pprint/pprint filtered)
     (spit "uploaded-files.txt" log-output :append true)))
 
 (defn upload-manuals
-  "Загружаем инструкции и схемы сборки на сервер"
+  "Загружаем инструкции и схемы сборки на сервер.
+   Возвращает map с ключами :success и :errors из ответа сервера, или nil при ошибке."
   [instructions assembly]
   (when (or (seq instructions) (seq assembly)) ; выполняем только если есть данные
     (let [encode-file (fn [path]
@@ -104,10 +105,19 @@
                                :content-type :json
                                :conn-timeout 300000})
                  (catch Exception e
-                   (send-message! (str "Ошибка при загрузке инструкций на сервер: " (.getMessage e)))))]
+                   (send-message! (str "Ошибка при загрузке инструкций на сервер: " (.getMessage e)))
+                   nil))]
 
-      (when (not= (:status resp) 200)
-        (send-message! (str "Проблемы при загрузке инструкций, статус: " (:status resp)))))))
+      (if (and resp (= (:status resp) 200))
+        (try
+          (ch/parse-string (:body resp) true) ; Парсим JSON ответ
+          (catch Exception e
+            (send-message! (str "Ошибка при парсинге ответа сервера: " (.getMessage e)))
+            nil))
+        (do
+          (when resp
+            (send-message! (str "Проблемы при загрузке инструкций, статус: " (:status resp))))
+          nil)))))
 
 (comment
   (let [art "CL101161"

@@ -77,6 +77,35 @@
                (not path-converted?) (conj "Некорректный формат пути")
                (and path-converted? (not file-exists?)) (conj "Файл не найден"))}))
 
+(defn create-upload-status-map
+  "Создает map для быстрого поиска статуса загрузки по артикулу и типу"
+  [upload-result]
+  (let [success-map (->> (:success upload-result)
+                         (group-by :art)
+                         (map (fn [[art items]]
+                                [art (into {} (map (fn [item] [(:type item) item]) items))]))
+                         (into {}))
+        errors-map (->> (:errors upload-result)
+                        (filter map?)
+                        (group-by :art)
+                        (map (fn [[art items]]
+                               [art (into {} (map (fn [item] [(:type item) item]) items))]))
+                        (into {}))
+        string-errors (filter string? (:errors upload-result))]
+    {:success success-map
+     :errors errors-map
+     :string-errors string-errors}))
+
+(defn get-upload-status
+  "Получает статус загрузки для конкретного артикула и типа"
+  [status-map article type]
+  (cond
+    (get-in status-map [:success article type]) 
+    {:status :success :data (get-in status-map [:success article type])}
+    (get-in status-map [:errors article type])
+    {:status :error :data (get-in status-map [:errors article type])}
+    :else nil))
+
 (defn upload-instructions [request]
   (let [instructions-data (some-> request :params :instructions parse-manual-data)
         assembly-data (some-> request :params :assembly parse-manual-data)
@@ -88,22 +117,24 @@
         
         valid-instructions (filter :valid? validated-instructions)
         valid-assembly (filter :valid? validated-assembly)
-        valid-boxes (filter :valid? validated-boxes)]
+        valid-boxes (filter :valid? validated-boxes)
 
-    
-    ;; Если есть валидные данные, копируем файлы и отправляем на сервер
-    (when (or (seq valid-instructions) (seq valid-assembly) (seq valid-boxes))
-      (when (seq valid-instructions)
-        (doseq [{:keys [article path]} valid-instructions]
-          (copy-manuals article path "01_PRODUCTION_FILES/03_MANUAL/")))
-      (when (seq valid-assembly)
-        (doseq [{:keys [article path]} valid-assembly]
-          (copy-manuals article path "01_PRODUCTION_FILES/03_ASSEMBLY/")))
-      (when (seq valid-boxes)
-        (doseq [{:keys [article path]} valid-boxes]
-          (copy-manuals article path "01_PRODUCTION_FILES/02_BOX/")))
-      
-      (upload-manuals valid-instructions valid-assembly))
+        upload-result (when (or (seq valid-instructions) (seq valid-assembly) (seq valid-boxes))
+                       ;; Копируем файлы на файловую систему
+                       (when (seq valid-instructions)
+                         (doseq [{:keys [article path]} valid-instructions]
+                           (copy-manuals article path "01_PRODUCTION_FILES/03_MANUAL/")))
+                       (when (seq valid-assembly)
+                         (doseq [{:keys [article path]} valid-assembly]
+                           (copy-manuals article path "01_PRODUCTION_FILES/03_ASSEMBLY/")))
+                       (when (seq valid-boxes)
+                         (doseq [{:keys [article path]} valid-boxes]
+                           (copy-manuals article path "01_PRODUCTION_FILES/02_BOX/")))
+                       
+                       ;; Загружаем на сервер и получаем результат
+                       (upload-manuals valid-instructions valid-assembly))
+        
+        upload-status (when upload-result (create-upload-status-map upload-result))]
 
     (hiccup/html5
      [:body
@@ -111,6 +142,14 @@
       [:head (hiccup/include-js "htmx.js")]
       [:div {:class "container mx-auto p-4"}
        [:h1 {:class "text-2xl font-bold mb-8"} "Загруженные данные"]
+
+       ;; Общие ошибки (строковые)
+       (when (and upload-status (seq (:string-errors upload-status)))
+         [:div {:class "mb-8 p-4 bg-red-100 border border-red-400 rounded"}
+          [:h2 {:class "text-xl font-semibold mb-2 text-red-800"} "Общие ошибки"]
+          [:ul {:class "list-disc list-inside"}
+           (for [error (:string-errors upload-status)]
+             [:li {:class "text-red-600"} error])]])
 
        (when validated-instructions
          [:div {:class "mb-8"}
@@ -120,16 +159,39 @@
             [:tr
              [:th "Артикул"]
              [:th "Путь"]
-             [:th "Статус"]]]
+             [:th "Валидация"]
+             [:th "Загрузка на сервер"]]]
            [:tbody
             (for [{:keys [article path valid? errors]} validated-instructions]
-              [:tr {:class (if valid? "bg-green-100" "bg-red-100")}
-               [:td article]
-               [:td path]
-               [:td (if valid?
-                      [:span {:class "text-green-600"} "✓ Валидно"]
-                      [:div {:class "text-red-600"}
-                       (str/join ", " errors)])]])]]])
+              (let [upload-status-item (when upload-status (get-upload-status upload-status article "instruction"))]
+                [:tr {:class (cond
+                               (and valid? (= (:status upload-status-item) :success)) "bg-green-100"
+                               (and valid? (= (:status upload-status-item) :error)) "bg-yellow-100"
+                               valid? "bg-blue-100"
+                               :else "bg-red-100")}
+                 [:td article]
+                 [:td path]
+                 [:td (if valid?
+                        [:span {:class "text-green-600"} "✓ Валидно"]
+                        [:div {:class "text-red-600"}
+                         (str/join ", " errors)])]
+                 [:td (cond
+                        (nil? upload-status-item)
+                        (if valid?
+                          [:span {:class "text-gray-500"} "Ожидание загрузки"]
+                          [:span {:class "text-gray-400"} "-"])
+                        (= (:status upload-status-item) :success)
+                        [:div {:class "text-green-600"}
+                         [:span "✓ Загружено"]
+                         (when-let [file-path (:file_path (:data upload-status-item))]
+                           [:div {:class "text-xs text-gray-600 mt-1"} file-path])]
+                        (= (:status upload-status-item) :error)
+                        [:div {:class "text-red-600"}
+                         [:span "✗ Ошибка"]
+                         (when-let [error-msg (:error (:data upload-status-item))]
+                           [:div {:class "text-xs mt-1"} error-msg])]
+                        :else
+                        [:span {:class "text-gray-500"} "Неизвестный статус"])]]))]]])
 
        (when validated-assembly
          [:div {:class "mb-8"}
@@ -139,16 +201,39 @@
             [:tr
              [:th "Артикул"]
              [:th "Путь"]
-             [:th "Статус"]]]
+             [:th "Валидация"]
+             [:th "Загрузка на сервер"]]]
            [:tbody
             (for [{:keys [article path valid? errors]} validated-assembly]
-              [:tr {:class (if valid? "bg-green-100" "bg-red-100")}
-               [:td article]
-               [:td path]
-               [:td (if valid?
-                      [:span {:class "text-green-600"} "✓ Валидно"]
-                      [:div {:class "text-red-600"}
-                       (str/join ", " errors)])]])]]])
+              (let [upload-status-item (when upload-status (get-upload-status upload-status article "assembly"))]
+                [:tr {:class (cond
+                               (and valid? (= (:status upload-status-item) :success)) "bg-green-100"
+                               (and valid? (= (:status upload-status-item) :error)) "bg-yellow-100"
+                               valid? "bg-blue-100"
+                               :else "bg-red-100")}
+                 [:td article]
+                 [:td path]
+                 [:td (if valid?
+                        [:span {:class "text-green-600"} "✓ Валидно"]
+                        [:div {:class "text-red-600"}
+                         (str/join ", " errors)])]
+                 [:td (cond
+                        (nil? upload-status-item)
+                        (if valid?
+                          [:span {:class "text-gray-500"} "Ожидание загрузки"]
+                          [:span {:class "text-gray-400"} "-"])
+                        (= (:status upload-status-item) :success)
+                        [:div {:class "text-green-600"}
+                         [:span "✓ Загружено"]
+                         (when-let [file-path (:file_path (:data upload-status-item))]
+                           [:div {:class "text-xs text-gray-600 mt-1"} file-path])]
+                        (= (:status upload-status-item) :error)
+                        [:div {:class "text-red-600"}
+                         [:span "✗ Ошибка"]
+                         (when-let [error-msg (:error (:data upload-status-item))]
+                           [:div {:class "text-xs mt-1"} error-msg])]
+                        :else
+                        [:span {:class "text-gray-500"} "Неизвестный статус"])]]))]]])
 
        (when validated-boxes
          [:div {:class "mb-8"}
@@ -165,7 +250,7 @@
                [:td article]
                [:td path]
                [:td (if valid?
-                      [:span {:class "text-green-600"} "✓ Валидно"]
+                      [:span {:class "text-green-600"} "✓ Валидно (скопировано локально)"]
                       [:div {:class "text-red-600"}
                        (str/join ", " errors)])]])]]]) 
 
