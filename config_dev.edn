@@ -11,4 +11,8 @@
  :hot-dir ""
  :hot-dir-wb ""
  :out-path ""
- :debug true}
+ :debug true
+ ;; MTProxy configuration
+ :mtproxy-host nil
+ :mtproxy-port nil
+ :mtproxy-secret ""}

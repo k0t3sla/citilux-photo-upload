@@ -3,18 +3,32 @@
             [clj-http.client :as client]
             [cheshire.core :refer [generate-string]]
             [config.core :refer [env]]
-            [clojure.java.shell :as sh] 
+            [clojure.java.shell :as sh]
             [clojure.walk :as walk]
             [mikera.image.core :as img]
             [clojure.string :as str])
   (:gen-class))
 
+(defn- build-proxy-url
+  "Создание URL для MTProxy если параметры настроены"
+  []
+  (let [host (:mtproxy-host env)
+        port (:mtproxy-port env)
+        _secret (:mtproxy-secret env)]
+    (when (and host port)
+      (str host ":" port))))
+
 (defn send-message! [text]
-  (client/post
-   (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
-   {:body (generate-string {:chat_id (:chat_id env) :text text :parse_mode "HTML"})
-    :headers {"Content-Type" "application/json"
-              "Accept" "application/json"}}))
+  (let [proxy-url (build-proxy-url)
+        request-opts {:body (generate-string {:chat_id (:chat_id env) :text text :parse_mode "HTML"})
+                      :headers {"Content-Type" "application/json"
+                                "Accept" "application/json"}}
+        opts (if proxy-url
+               (assoc request-opts :proxy proxy-url)
+               request-opts)]
+    (client/post
+     (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
+     opts)))
 
 (defn parse-resp [resp]
   (str/split (apply str (->> resp
@@ -30,7 +44,7 @@
   "Создание пути для сохранения, первые 3, 5 или весь артикул"
   ([file-path]
    (let [file-name (fs/file-name file-path)
-         adv (cond 
+         adv (cond
                (str/includes? file-name "_SMM_") "05_COLLECTIONS_ADV/03_SMM/"
                (str/includes? file-name "_BANNERS_") "05_COLLECTIONS_BANNERS/"
                (str/includes? file-name "_WEBBANNERS_") "05_COLLECTIONS_WEB_BANNERS/"
@@ -178,10 +192,10 @@
 
 (defn report-imgs-1c! [arts]
   (when-not (= "OK" (-> (client/post (str (:root-1c-endpoint env) (:imgs-report-1c env))
-                                    {:headers {"Authorization" (:token-1c-foto env)}
-                                     :throw-exceptions false
-                                     :body (generate-string arts)})
-                       :reason-phrase))
+                                     {:headers {"Authorization" (:token-1c-foto env)}
+                                      :throw-exceptions false
+                                      :body (generate-string arts)})
+                        :reason-phrase))
     (send-message! "Ошибка отправки в 1с")))
 
 (defn check-dimm [^String path]
@@ -249,8 +263,7 @@
     (fs/delete-if-exists file)))
 
 (comment
-  (copy-abris "/home/li/TEMP/HOT_DIR/CL237B310_31.jpg")
-  )
+  (copy-abris "/home/li/TEMP/HOT_DIR/CL237B310_31.jpg"))
 
 (defn move-file
   "on input filepath"
@@ -260,7 +273,6 @@
     (fs/create-dirs (create-path file-name))
     (fs/copy file path {:replace-existing true})
     (fs/delete-if-exists file)))
-
 
 (defn split-articles [^String s]
   (filter #(not (str/blank? %)) (str/split s #",|\n|\t")))
@@ -328,7 +340,6 @@
                                (first d) "/"
                                (create-path-art a (second d))))]
 
-
     (doseq [d dirs]
       (doseq [a accessories]
         (create-dir-if-not-exist
@@ -348,10 +359,9 @@
       (doseq [a cl]
         (create-dir-if-not-exist
          (create-path-dir d a "20_CITILUX/"))))))
-        
 
 (comment
-  
+
   (count (get-all-articles))
 
   (exist? "CL712S180" (get-all-articles))
@@ -368,9 +378,6 @@
 
   (create-dirs-ctructure)
 
+  (send-message! "test")
 
-  ()
-
-  )
-
-
+  ())
