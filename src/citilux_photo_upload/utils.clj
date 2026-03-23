@@ -88,7 +88,7 @@
 
 (defn move-and-compress [file dir-to-save]
   (let [mozjpeg-bin "./cjpeg-static"
-        tmp-path (str "tmp" '/ (str (first (fs/split-ext (fs/file-name file))) ".jpg"))
+        tmp-path (str "tmp" '/ (first (fs/split-ext (fs/file-name file))) ".jpg")
         _ (sh/sh mozjpeg-bin "-quality" (:quality env) "-outfile" tmp-path file)
         orig-size (fs/size file)
         zipped-size (fs/size tmp-path)
@@ -366,7 +366,7 @@
 
   (exist? "CL712S180" (get-all-articles))
 
-  (clojure.pprint/pprint (get-all-articles))
+  (println (get-all-articles))
 
   ;;;; DIR GENERATOR
 

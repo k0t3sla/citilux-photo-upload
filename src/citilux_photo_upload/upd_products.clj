@@ -1,7 +1,6 @@
 (ns citilux-photo-upload.upd-products
   (:require
-   [citilux-photo-upload.utils :refer [all-articles
-                                       exist? split-articles]]
+   [citilux-photo-upload.utils :refer [all-articles split-articles]]
    [clojure.string :as str]
    [config.core :refer [env]]
    [hiccup.page :as hiccup]
@@ -21,8 +20,8 @@
   []
   (try
     (let [response (client/post (str (:test-site env) "/api/sitemap")
-                               {:query-params {:key (:sitemap-api-key env)}
-                                :throw-exceptions false})]
+                                {:query-params {:key (:sitemap-api-key env)}
+                                 :throw-exceptions false})]
       (if (= 200 (:status response))
         {:success true :message "Sitemap успешно обновлен"}
         {:success false :message (str "HTTP Error: " (:status response))}))
@@ -39,22 +38,22 @@
       [:div
        [:h2 {:class "text-xl font-semibold mb-2"} "Обновление продуктов"]
        [:textarea {:class "w-[80vw] h-[23vh] p-4 mb-4 border rounded textarea textarea-primary"
-                  :name "products"
-                  :placeholder "Введите артикулы для обновления.\nФормат: CL123456, CL703 или через перенос строки\nПример: CL714A40G (точный), CL703 (по подстроке)\n\nТребования: больше 4 символов и должны существовать артикулы, начинающиеся с введенной подстроки"}]] 
-      
+                   :name "products"
+                   :placeholder "Введите артикулы для обновления.\nФормат: CL123456, CL703 или через перенос строки\nПример: CL714A40G (точный), CL703 (по подстроке)\n\nТребования: больше 4 символов и должны существовать артикулы, начинающиеся с введенной подстроки"}]]
+
       [:button {:type "submit" :class "btn btn-primary btn-sm w-40"} "Обновить продукты"]]
-     
+
      [:div {:class "divider"}]
-     
+
      [:div {:class "flex flex-col items-center"}
       [:h2 {:class "text-xl font-semibold mb-4"} "Обновление Sitemap"]
       [:form {:method "POST" :action "/upd-products" :class "flex flex-col items-center"}
        [:input {:type "hidden" :name "action" :value "sitemap"}]
        [:button {:type "submit" :class "btn btn-secondary btn-sm w-40"} "Обновить Sitemap"]]]]]))
 
-(defn filter-articles 
+(defn filter-articles
   "Фильтрует артикулы на корректные и некорректные"
-  [{:keys [filter-errors? articles]}] 
+  [{:keys [filter-errors? articles]}]
   (let [check-article (fn [article]
                         (if (<= (count article) 4)
                           ;; Для коротких артикулов (4 символов и меньше) считаем невалидными
@@ -78,7 +77,7 @@
 
 (defn update-product-on-server
   "Отправляет запрос на обновление одного продукта"
-  [article] 
+  [article]
   (try
     (let [response (client/post (str (:test-site env) "/api/update-products")
                                 {:headers {:authorization (str "Bearer " (:test-site-token env))}
@@ -93,7 +92,7 @@
 
 (defn update-products-batch
   "Обновляет список продуктов и собирает результаты"
-  [articles] 
+  [articles]
   (let [results (map update-product-on-server articles)]
     (reduce (fn [acc result]
               {:updated (concat (:updated acc) (:updated result))
@@ -101,12 +100,12 @@
             {:updated [] :errors []}
             results)))
 
-(defn display-results 
+(defn display-results
   "Отображает результаты обновления продуктов"
   [results _ error-articles]
   [:div {:class "container mx-auto p-4"}
    [:h2 {:class "text-xl font-semibold mb-4"} "Результаты обновления продуктов"]
-   
+
    ;; Показываем некорректные артикулы (не найдены в базе)
    (when (not-empty error-articles)
      [:div {:class "mb-4 p-4 bg-red-100 border border-red-300 rounded"}
@@ -117,7 +116,7 @@
                         "слишком короткий (нужно больше 4 символов)"
                         "не найдено артикулов, начинающихся с этой подстроки")]
            [:li article " - " reason]))]])
-   
+
    ;; Показываем успешно обновленные
    (when (not-empty (:updated results))
      [:div {:class "mb-4 p-4 bg-green-100 border border-green-300 rounded"}
@@ -125,7 +124,7 @@
       [:ul {:class "list-disc list-inside text-green-600"}
        (for [article (:updated results)]
          [:li article])]])
-   
+
    ;; Показываем ошибки сервера
    (when (not-empty (:errors results))
      [:div {:class "mb-4 p-4 bg-yellow-100 border border-yellow-300 rounded"}
@@ -133,7 +132,7 @@
       [:ul {:class "list-disc list-inside text-yellow-600"}
        (for [error (:errors results)]
          [:li (:article error) " - " (:reason error)])]])
-   
+
    [:div {:class "flex justify-center mt-6"}
     [:a {:href "/upd-products" :class "btn btn-primary"} "Вернуться к форме"]]])
 
@@ -157,35 +156,35 @@
                 [:p {:class "text-red-600"} (:message result)]])
              [:div {:class "mt-4 flex justify-center"}
               [:a {:href "/upd-products" :class "btn btn-primary"} "Вернуться к форме"]]]]))
-        
+
         ;; Обработка обновления продуктов (оригинальная логика)
         (let [products-content (get-in request [:params :products])
               _ (println "Получен контент:" products-content)
-              
+
               articles (parse-articles products-content)
               _ (println "Распарсенные артикулы:" articles)
-              
+
               error-articles (filter-articles {:filter-errors? true :articles articles})
               correct-articles (filter-articles {:filter-errors? false :articles articles})
               _ (println "Корректные артикулы:" correct-articles)
               _ (println "Некорректные артикулы:" error-articles)]
-          
+
           (if (empty? correct-articles)
             ;; Если нет корректных артикулов
             (hiccup/html5
              [:body
               [:head (hiccup/include-css "styles.css" "additional.css")]
               (display-results {:updated [] :errors []} [] error-articles)])
-            
+
             ;; Обновляем корректные артикулы
             (let [results (update-products-batch correct-articles)
                   _ (println "Результаты обновления:" results)]
-              
+
               (hiccup/html5
                [:body
                 [:head (hiccup/include-css "styles.css" "additional.css")]
                 (display-results results correct-articles error-articles)]))))))
-    
+
     (catch Exception e
       (println "Ошибка в upd-products:" (.getMessage e))
       (hiccup/html5
