@@ -19,3 +19,4 @@ config-dev.edn
 config.edn
 resources/public/styles.css
 uploaded-files.txt
+data/

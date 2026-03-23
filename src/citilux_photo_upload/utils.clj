@@ -6,7 +6,8 @@
             [clojure.java.shell :as sh]
             [clojure.walk :as walk]
             [mikera.image.core :as img]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [citilux-photo-upload.proxy :as proxy])
   (:gen-class))
 
 (defn- build-proxy-url
@@ -19,16 +20,31 @@
       (str host ":" port))))
 
 (defn send-message! [text]
-  (let [proxy-url (build-proxy-url)
+  (let [url (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
         request-opts {:body (generate-string {:chat_id (:chat_id env) :text text :parse_mode "HTML"})
                       :headers {"Content-Type" "application/json"
-                                "Accept" "application/json"}}
-        opts (if proxy-url
-               (assoc request-opts :proxy proxy-url)
-               request-opts)]
-    (client/post
-     (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
-     opts)))
+                                "Accept" "application/json"}
+                      :as :json
+                      :coerce :always
+                      :socket-timeout 5000
+                      :conn-timeout 5000
+                      :throw-exceptions false}
+        proxies (->> (concat (proxy/candidate-request-proxies) [(build-proxy-url) nil])
+                     (remove str/blank?)
+                     distinct)
+        attempt-send (fn [proxy-url]
+                       (let [opts (if proxy-url
+                                    (assoc request-opts :proxy proxy-url)
+                                    request-opts)
+                             resp (client/post url opts)]
+                         (when (and (<= 200 (:status resp) 299)
+                                    (or (true? (get-in resp [:body :ok]))
+                                        (str/includes? (str (:body resp)) "\"ok\":true")))
+                           resp)))]
+    (or
+     (some attempt-send proxies)
+     (throw (ex-info "Не удалось отправить Telegram сообщение через все прокси"
+                     {:proxy-count (count proxies)})))))
 
 (defn parse-resp [resp]
   (str/split (apply str (->> resp

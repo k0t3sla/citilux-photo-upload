@@ -9,6 +9,7 @@
             [reitit.ring :as ring]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
             [ring.util.response :as response]
+            [citilux-photo-upload.proxy :as proxy]
             [citilux-photo-upload.upload :refer [upload-fotos upload-3d]]
             [citilux-photo-upload.manuals :refer [manuals-page upload-instructions]]
             [citilux-photo-upload.upd-products :refer [upd-products-page upd-products reindex-site!]]
@@ -294,10 +295,148 @@
                                                    [:textarea {:rows 10 :cols 45 :class "w-full h-20 p-2 textarea textarea-primary" :name "arts" :required true :placeholder "CL123456, CL234567"}]
                                                    [:div {:class "flex flex-col items-center pt-10"} [:button {:type "submit" :class "btn btn-accent"} "Загрузить на сервер"]]]]
       [:div {:class "flex flex-col items-center pt-10"} 
+       [:div {:class "mb-4"}
+        (if (proxy/any-proxy-alive?)
+          [:span {:class "inline-block px-4 py-2 rounded text-white bg-green-600"} "Proxy: active"]
+          [:span {:class "inline-block px-4 py-2 rounded text-white bg-red-600"} "Proxy: inactive"])]
+       [:a {:href "/proxy" :class "btn btn-outline mb-4"} "Управление прокси"]
        [:button {:hx-post "/update" :hx-swap "outerHTML" :class "btn btn-success mb-4"} "Обновить список артикулов из 1с"]
        [:a {:href "/upd-products" :class "btn btn-info mb-4"} "Обновить продукты на сервере"]
        [:a {:href "/reindex" :class "btn btn-secondary mb-4"} "Переиндексировать сайт"]
        [:a {:href "/manuals" :class "btn btn-secondary"} "Загрузить инструкции"]]])))
+
+(defn json-response [data]
+  (-> (generate-string data)
+      (response/response)
+      (response/header "content-type" "application/json")))
+
+(defn proxy-list-handler [_]
+  (json-response {:proxies (proxy/list-proxies)}))
+
+(defn- parse-json-safely [s]
+  (try
+    (cheshire.core/parse-string s true)
+    (catch Exception _ nil)))
+
+(defn proxy-add-handler [request]
+  (try
+    (let [body (slurp (:body request))
+          payload (when-not (str/blank? body) (parse-json-safely body))
+          links (or (:links payload) body)
+          result (proxy/add-proxies! links)]
+      (json-response result))
+    (catch Exception e
+      (-> (json-response {:error (.getMessage e)})
+          (response/status 400)))))
+
+(defn proxy-remove-handler [request]
+  (try
+    (let [body (slurp (:body request))
+          payload (when-not (str/blank? body) (parse-json-safely body))
+          ids-or-urls (or (:items payload)
+                          (when (string? body)
+                            (->> (str/split-lines body) (map str/trim) (remove str/blank?)))
+                          [])
+          result (proxy/remove-proxies! ids-or-urls)]
+      (json-response result))
+    (catch Exception e
+      (-> (json-response {:error (.getMessage e)})
+          (response/status 400)))))
+
+(defn proxy-refresh-handler [_]
+  (json-response {:proxies (proxy/refresh-proxy-status!)}))
+
+(defn proxy-working-handler [_]
+  (if-let [raw-url (proxy/get-working-proxy-url)]
+    (-> (response/response raw-url)
+        (response/header "content-type" "text/plain"))
+    (-> (response/response "")
+        (response/status 404)
+        (response/header "content-type" "text/plain"))))
+
+(defn- status-badge [{:keys [alive?]}]
+  (if alive?
+    [:span {:class "px-2 py-1 rounded text-white bg-green-600"} "UP"]
+    [:span {:class "px-2 py-1 rounded text-white bg-red-600"} "DOWN"]))
+
+(defn- normalize-to-vec [value]
+  (cond
+    (nil? value) []
+    (vector? value) value
+    (sequential? value) (vec value)
+    :else [value]))
+
+(defn proxy-page [_]
+  (let [proxies (proxy/list-proxies)
+        rows (for [{:keys [id type server port latency-ms last-check-at last-error] :as p} proxies]
+               [:tr
+                [:td [:input {:type "checkbox" :name "items" :value id}]]
+                [:td [:code id]]
+                [:td (name type)]
+                [:td server]
+                [:td port]
+                [:td (status-badge p)]
+                [:td (or latency-ms "-")]
+                [:td (or last-check-at "-")]
+                [:td (or last-error "-")]])]
+    (hiccup/html5
+     [:body
+      [:head (hiccup/include-css "styles.css" "additional.css")]
+      [:main {:class "container mx-auto p-6"}
+       [:div {:class "flex items-center justify-between mb-6"}
+        [:h1 {:class "text-2xl font-bold"} "Proxy Manager"]
+        [:a {:href "/" :class "btn btn-secondary"} "На главную"]]
+       [:div {:class "mb-4"}
+        (if (proxy/any-proxy-alive?)
+          [:span {:class "inline-block px-4 py-2 rounded text-white bg-green-600"} "Есть рабочие прокси"]
+          [:span {:class "inline-block px-4 py-2 rounded text-white bg-red-600"} "Рабочих прокси нет"])]
+       [:form {:method "post" :action "/proxy/ui/refresh" :class "mb-6"}
+        [:button {:type "submit" :class "btn btn-primary"} "Обновить статусы (ping)"]]
+       [:div {:class "mb-8"}
+        [:h2 {:class "text-lg mb-2"} "Добавить прокси списком"]
+        [:form {:method "post" :action "/proxy/ui/add"}
+         [:textarea {:name "links"
+                     :rows 8
+                     :class "w-full p-2 textarea textarea-primary"
+                     :placeholder "Вставьте ссылки по одной на строку..."}]
+         [:div {:class "mt-3"}
+          [:button {:type "submit" :class "btn btn-success"} "Добавить"]]]]
+       [:div
+        [:h2 {:class "text-lg mb-2"} "Сохраненные прокси"]
+        [:form {:method "post" :action "/proxy/ui/remove"}
+         [:table {:class "table w-full"}
+          [:thead
+           [:tr
+            [:th ""]
+            [:th "ID"]
+            [:th "Type"]
+            [:th "Server"]
+            [:th "Port"]
+            [:th "Status"]
+            [:th "Latency"]
+            [:th "Last check"]
+            [:th "Error"]]]
+          (into [:tbody] rows)]
+         [:div {:class "mt-3"}
+          [:button {:type "submit" :class "btn btn-error"} "Удалить выбранные"]]]]]])))
+
+
+(defn proxy-ui-add-handler [request]
+  (let [links (get-in request [:params :links] "")]
+    (when-not (str/blank? links)
+      (proxy/add-proxies! links)
+      (proxy/refresh-proxy-status!))
+    (response/redirect "/proxy")))
+
+(defn proxy-ui-remove-handler [request]
+  (let [items (-> request :params :items normalize-to-vec)]
+    (when (seq items)
+      (proxy/remove-proxies! items))
+    (response/redirect "/proxy")))
+
+(defn proxy-ui-refresh-handler [_]
+  (proxy/refresh-proxy-status!)
+  (response/redirect "/proxy"))
 
 (defn hotdir-handler [_]
   (try
@@ -446,6 +585,27 @@
                       generate-string)
                   (response/response)
                   (response/header "content-type" "application/json")))}]
+     ["/proxy/list"
+      {:get proxy-list-handler}]
+     ["/proxy"
+      {:get (fn [request]
+              (-> (proxy-page request)
+                  (response/response)
+                  (response/header "content-type" "text/html")))}]
+     ["/proxy/add"
+      {:post proxy-add-handler}]
+     ["/proxy/remove"
+      {:post proxy-remove-handler}]
+     ["/proxy/refresh"
+      {:post proxy-refresh-handler}]
+     ["/proxy/working"
+      {:get proxy-working-handler}]
+     ["/proxy/ui/add"
+      {:post proxy-ui-add-handler}]
+     ["/proxy/ui/remove"
+      {:post proxy-ui-remove-handler}]
+     ["/proxy/ui/refresh"
+      {:post proxy-ui-refresh-handler}]
      ["/update"
       {:post (fn [request]
                (-> (update-handler request)
@@ -487,6 +647,9 @@
 (defn -main
   []
   (update-articles!)
+  (proxy/load-proxies!)
+  (proxy/ensure-initial-proxies!)
+  (proxy/refresh-proxy-status!)
   (start-server))
 
 (comment
