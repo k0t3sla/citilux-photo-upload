@@ -134,8 +134,14 @@
 
 (defn progress-ui-fragment []
   (let [{:keys [running? stage entries started-at finished-at stage-totals stage-processed]} @upload-progress
-        current-total (get stage-totals stage 0)
-        current-processed (get stage-processed stage 0)]
+        total-planned (reduce + 0 (vals stage-totals))
+        total-done (reduce + 0 (vals stage-processed))
+        current-total (if (= stage "done")
+                        total-planned
+                        (get stage-totals stage 0))
+        current-processed (if (= stage "done")
+                            total-done
+                            (get stage-processed stage 0))]
     [:div {:id "upload-progress-panel"
            :class "mt-6 p-4 rounded border"
            :hx-get "/hot-dir-upload/progress-ui"
@@ -223,6 +229,14 @@
 (defn add-to-message-log! [message]
   (swap! message-log conj message))
 
+(defn- run-safe! [label f]
+  (try
+    (f)
+    (catch Exception e
+      ;; Network integrations must not stop file distribution pipeline.
+      (append-progress! (str "warn [" label "]: " (.getMessage e)))
+      (println (str "warn [" label "]: " (.getMessage e))))))
+
 (defn send-files!
   []
   (try
@@ -252,8 +266,10 @@
             (swap! err-fotos conj file)))
         (add-to-message-log! (notify-msg-create {:files (:regular-hot-dir files) :heading "Загружены фото в папку\n"}))
         (when-not (:debug env)
-          (report-imgs-1c! (set (mapv get-article
-                                      (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files)))))))
+          (run-safe! "report-imgs-1c regular-hot-dir"
+                     (fn []
+                       (report-imgs-1c! (set (mapv get-article
+                                                   (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files)))))))))
 
       (when (not-empty (:regular-hot-dir-wb files))
         (set-progress-stage! "regular-hot-dir-wb")
@@ -269,8 +285,10 @@
             (swap! err-fotos conj file)))
         (add-to-message-log! (notify-msg-create {:files (:regular-hot-dir files) :heading "Загружены фото в папку\n"}))
         (when-not (:debug env)
-          (report-imgs-1c! (set (mapv get-article
-                                      (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files)))))))
+          (run-safe! "report-imgs-1c regular-hot-dir-wb"
+                     (fn []
+                       (report-imgs-1c! (set (mapv get-article
+                                                   (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files)))))))))
 
       (when (not-empty (:smm files))
         (set-progress-stage! "smm")
@@ -348,10 +366,12 @@
         (add-to-message-log! (notify-msg-create {:files (:white files) :heading "В папку 04_SKU_PNG_WHITE\n"})))
 
       (when (not-empty (:err-files files))
-        (send-message! (str "ошибки в названиях фото" (mapv fs/file-name (:err-files files)))))
+        (run-safe! "send-message err-files"
+                   #(send-message! (str "ошибки в названиях фото" (mapv fs/file-name (:err-files files))))))
 
       (when (not-empty @message-log)
-        (send-message! (str/join "\n" @message-log))
+        (run-safe! "send-message summary"
+                   #(send-message! (str/join "\n" @message-log)))
         (swap! message-log empty))
 
       (if (not-empty (:to-upload files))
@@ -363,17 +383,23 @@
               (when-not (:debug env)
                 (upload-fotos art))
               (println (str "upload " art " to server"))
-              (catch Exception e (send-message! (str "upload on server caught exception: " (.getMessage e))))))
-          (when (not-empty (:to-upload files)) (notify! {:files (:to-upload files)})))
-        (send-message! "Новые фотографии отсутствуют"))
+              (catch Exception e
+                (append-progress! (str "warn [upload-fotos]: " art " -> " (.getMessage e)))
+                (run-safe! "send-message upload-fotos exception"
+                           #(send-message! (str "upload on server caught exception: " (.getMessage e)))))))
+          (when (not-empty (:to-upload files))
+            (run-safe! "notify upload complete" #(notify! {:files (:to-upload files)}))))
+        (run-safe! "send-message no-new-photos" #(send-message! "Новые фотографии отсутствуют")))
 
       (when (not-empty @err-fotos)
-        (notify! {:files @err-fotos :heading "Ошибки в размерах фото\n"
-                  :err? true})))
+        (run-safe! "notify err-fotos"
+                   #(notify! {:files @err-fotos :heading "Ошибки в размерах фото\n"
+                              :err? true}))))
 
     (catch Exception e
       (append-progress! (str "error: " (.getMessage e)))
-      (send-message! (str "caught exception send-message!: " (.getMessage e)))
+      (run-safe! "send-message top-level-exception"
+                 #(send-message! (str "caught exception send-files!: " (.getMessage e))))
       (println (str "caught exception send-message!: " (.getMessage e))))))
 
 
