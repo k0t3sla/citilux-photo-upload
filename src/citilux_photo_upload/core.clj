@@ -377,8 +377,13 @@
   ([flash]
    (let [proxies (proxy/list-proxies)
          rows (for [{:keys [id type server port latency-ms last-check-at last-error] :as p} proxies]
+                (let [checkbox-id (str "proxy-checkbox-" (str/replace id #"[^A-Za-z0-9_-]" "_"))]
                 [:tr
-                 [:td [:input {:type "checkbox" :name "items" :value id}]]
+                 [:td [:input {:id checkbox-id
+                               :type "checkbox"
+                               :name "items"
+                               :value id
+                               :hx-preserve "true"}]]
                  [:td [:code id]]
                  [:td (name type)]
                  [:td server]
@@ -389,13 +394,12 @@
                  [:td (or last-error "-")]
                  [:td
                   (if-let [raw-url (:raw-url p)]
-                    [:a {:href raw-url
-                         :target "_blank"
-                         :rel "noopener noreferrer"
-                         :title "Открыть ссылку прокси для копирования"
-                         :class "text-xl"}
-                     "🔗"]
-                    "-")]])]
+                    [:button {:type "button"
+                              :title "Скопировать proxy-ссылку"
+                              :class "text-xl copy-proxy-btn"
+                              :data-proxy-url raw-url}
+                     "📋"]
+                    "-")]]))]
      [:div {:id "proxy-panel"}
       [:div {:id "proxy-loading-indicator"
              :class "htmx-indicator mb-4 flex items-center gap-2 text-sm text-gray-600"}
@@ -426,6 +430,8 @@
                :hx-swap "outerHTML"
                :hx-indicator "#proxy-loading-indicator"}
         [:textarea {:name "links"
+                    :id "proxy-links-input"
+                    :hx-preserve "true"
                     :rows 8
                     :class "w-full p-2 textarea textarea-primary"
                     :placeholder "Вставьте ссылки по одной на строку..."}]
@@ -449,7 +455,7 @@
            [:th "Latency"]
            [:th "Last check"]
            [:th "Error"]
-           [:th "Link"]]]
+           [:th "Copy"]]]
          (into [:tbody] rows)]
         [:div {:class "mt-3"}
          [:button {:type "submit" :class "btn btn-error"} "Удалить выбранные"]]]]])))
@@ -468,14 +474,42 @@
      [:div {:class "flex items-center justify-between mb-6"}
       [:h1 {:class "text-2xl font-bold"} "Proxy Manager"]
       [:a {:href "/" :class "btn btn-secondary"} "На главную"]]
+     [:div {:class "mb-4 flex items-center gap-3"}
+      [:label {:for "auto-refresh-toggle" :class "font-medium"} "Auto-refresh"]
+      [:input {:id "auto-refresh-toggle" :type "checkbox" :checked true}]
+      [:span {:id "auto-refresh-state" :class "text-sm"} "ON (60s)"]]
      ;; polling updates status/table every 10s without full page reload
      [:div {:id "proxy-panel-polling"
             :hx-get "/proxy/ui/panel"
-            :hx-trigger "every 10s"
+            :hx-trigger "every 60s"
             :hx-target "#proxy-panel"
             :hx-swap "outerHTML"
             :hx-indicator "#proxy-loading-indicator"}
-      (proxy-panel-fragment nil)]]]))
+      (proxy-panel-fragment nil)]
+     [:script "
+document.addEventListener('change', function (e) {
+  if (e.target && e.target.id === 'auto-refresh-toggle') {
+    var polling = document.getElementById('proxy-panel-polling');
+    var state = document.getElementById('auto-refresh-state');
+    var enabled = !!e.target.checked;
+    polling.setAttribute('hx-trigger', enabled ? 'every 60s' : 'none');
+    if (state) state.textContent = enabled ? 'ON (60s)' : 'OFF';
+    if (window.htmx && polling) window.htmx.process(polling);
+  }
+});
+
+document.addEventListener('click', function (e) {
+  var btn = e.target && e.target.closest ? e.target.closest('.copy-proxy-btn') : null;
+  if (!btn) return;
+  var url = btn.getAttribute('data-proxy-url');
+  if (!url) return;
+  navigator.clipboard.writeText(url).then(function () {
+    var old = btn.textContent;
+    btn.textContent = '✅';
+    setTimeout(function () { btn.textContent = old; }, 900);
+  });
+});
+"]]]))
 
 
 (defn proxy-ui-add-handler [request]
