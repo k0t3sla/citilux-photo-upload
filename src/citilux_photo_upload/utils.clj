@@ -33,19 +33,31 @@
                      ;; keep nil as explicit "send without proxy" fallback
                      (remove #(and (string? %) (str/blank? %)))
                      distinct)
+        attempt-errors (atom [])
         attempt-send (fn [proxy-url]
-                       (let [opts (if proxy-url
-                                    (assoc request-opts :proxy proxy-url)
-                                    request-opts)
-                             resp (client/post url opts)]
-                         (when (and (<= 200 (:status resp) 299)
+                       (try
+                         (let [opts (if proxy-url
+                                      (assoc request-opts :proxy proxy-url)
+                                      request-opts)
+                               resp (client/post url opts)]
+                           (if (and (<= 200 (:status resp) 299)
                                     (or (true? (get-in resp [:body :ok]))
                                         (str/includes? (str (:body resp)) "\"ok\":true")))
-                           resp)))]
+                             resp
+                             (do
+                               (swap! attempt-errors conj {:proxy proxy-url
+                                                           :status (:status resp)
+                                                           :body (str (:body resp))})
+                               nil)))
+                         (catch Exception e
+                           (swap! attempt-errors conj {:proxy proxy-url
+                                                       :error (.getMessage e)})
+                           nil)))]
     (or
      (some attempt-send proxies)
      (throw (ex-info "Не удалось отправить Telegram сообщение через все прокси"
-                     {:proxy-count (count proxies)})))))
+                     {:proxy-count (count proxies)
+                      :errors @attempt-errors})))))
 
 (defn parse-resp [resp]
   (str/split (apply str (->> resp
