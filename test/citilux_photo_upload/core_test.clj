@@ -20,3 +20,22 @@
             body (json/parse-string (:body resp) true)]
         (is (= 400 (:status resp)))
         (is (= 1 (:invalid body)))))))
+
+(deftest hotdir-progress-handler-shape-test
+  (testing "Progress endpoint data has expected keys"
+    (reset! upload-progress {:running? true
+                             :stage "test"
+                             :entries [{:ts "x" :message "m"}]
+                             :started-at "s"
+                             :finished-at nil})
+    (let [resp (hotdir-progress-handler nil)]
+      (is (= true (:running resp)))
+      (is (= "test" (:stage resp)))
+      (is (vector? (:entries resp))))))
+
+(deftest hotdir-handler-guard-test
+  (testing "Second hotdir run is guarded when blocked"
+    (reset! blocked true)
+    (let [resp (hotdir-handler nil)]
+      (is (string? resp)))
+    (reset! blocked false)))

@@ -49,6 +49,116 @@
 
 (set! *warn-on-reflection* true)
 (def blocked (atom false))
+(def max-progress-entries 120)
+(defonce upload-progress
+  (atom {:running? false
+         :started-at nil
+         :finished-at nil
+         :stage nil
+         :entries []
+         :stage-totals {}
+         :stage-processed {}}))
+
+(defn- now-ts []
+  (str (java.time.Instant/now)))
+
+(defn reset-progress!
+  ([] (reset-progress! {}))
+  ([stage-totals]
+   (reset! upload-progress {:running? true
+                            :started-at (now-ts)
+                            :finished-at nil
+                            :stage "start"
+                            :entries []
+                            :stage-totals stage-totals
+                            :stage-processed {}})))
+
+(defn append-progress! [entry]
+  (swap! upload-progress update :entries
+         (fn [entries]
+           (let [entry-data (if (string? entry)
+                              {:ts (now-ts) :message entry :stage nil :kind :info}
+                              (assoc entry :ts (or (:ts entry) (now-ts))))
+                 out (conj (vec entries) entry-data)]
+             (if (> (count out) max-progress-entries)
+               (subvec out (- (count out) max-progress-entries))
+               out)))))
+
+(defn log-file-progress! [stage file-name action]
+  (swap! upload-progress update-in [:stage-processed stage] (fnil inc 0))
+  (append-progress! {:message (str action ": " file-name)
+                     :stage stage
+                     :kind :file}))
+
+(defn set-progress-stage! [stage]
+  (swap! upload-progress assoc :stage stage)
+  (append-progress! {:message (str "Этап: " stage)
+                     :stage stage
+                     :kind :stage}))
+
+(defn finish-progress! []
+  (swap! upload-progress assoc :running? false :finished-at (now-ts)))
+
+(defn- calculate-stage-totals [files]
+  {"abris" (count (:abris files))
+   "regular-hot-dir" (count (:regular-hot-dir files))
+   "regular-hot-dir-wb" (count (:regular-hot-dir-wb files))
+   "smm" (count (:smm files))
+   "banners" (count (:banners files))
+   "3d" (count (:3d files))
+   "white" (count (:white files))
+   "upload-to-server" (count (:to-upload files))})
+
+(defn- stage-color [stage]
+  (case stage
+    "abris" "text-blue-700"
+    "regular-hot-dir" "text-green-700"
+    "regular-hot-dir-wb" "text-emerald-700"
+    "smm" "text-pink-700"
+    "banners" "text-orange-700"
+    "news" "text-purple-700"
+    "mail" "text-cyan-700"
+    "3d" "text-indigo-700"
+    "white" "text-slate-700"
+    "upload-to-server" "text-red-700"
+    "done" "text-lime-700"
+    "text-base-content"))
+
+(defn- grouped-progress [entries]
+  (->> entries
+       (reduce (fn [acc entry]
+                 (let [stage (or (:stage entry) "other")]
+                   (update acc stage (fnil conj []) entry)))
+               {})
+       (sort-by key)))
+
+(defn progress-ui-fragment []
+  (let [{:keys [running? stage entries started-at finished-at stage-totals stage-processed]} @upload-progress
+        current-total (get stage-totals stage 0)
+        current-processed (get stage-processed stage 0)]
+    [:div {:id "upload-progress-panel"
+           :class "mt-6 p-4 rounded border"
+           :hx-get "/hot-dir-upload/progress-ui"
+           :hx-trigger (if running? "every 2s" "none")
+           :hx-swap "outerHTML"}
+     [:h3 {:class "font-bold mb-2"} "Лог загрузки"]
+     [:div {:class "text-sm mb-2"} (str "Статус: " (if running? "в процессе" "завершено"))]
+     [:div {:class "text-sm mb-2"} (str "Этап: " (or stage "-"))]
+     [:div {:class "text-sm mb-2 font-medium"} (str "Обработано: " current-processed "/" current-total)]
+     [:div {:class "text-xs mb-2"} (str "Старт: " (or started-at "-") " | Финиш: " (or finished-at "-"))]
+     [:div {:id "upload-log-scroll" :class "max-h-64 overflow-auto bg-base-200 p-2 rounded"}
+      (if (seq entries)
+        [:div
+         (for [[stage-name stage-entries] (grouped-progress entries)]
+           (let [file-count (count (filter #(= :file (:kind %)) stage-entries))
+                 info-count (count (remove #(= :file (:kind %)) stage-entries))]
+             [:div {:class "mb-3 border-l-2 pl-3"}
+              [:div {:class (str "text-sm font-semibold " (stage-color stage-name))}
+               (str stage-name "  |  files: " file-count "  |  events: " info-count)]
+              [:ul
+               (for [{:keys [ts message]} stage-entries]
+                 [:li {:class "text-xs"} (str ts "  " message)])]]))]
+        [:div {:class "text-xs opacity-70"} "Лог пока пуст"])]]))
 
 
 (defn hotdir-files []
@@ -120,14 +230,18 @@
           err-fotos (atom [])]
 
       (when (not-empty (:abris files))
+        (set-progress-stage! "abris")
         (doseq [file (:abris files)]
+          (log-file-progress! "abris" (fs/file-name file) "copy")
           (if (check-dimm file)
             (copy-abris file)
             (swap! err-fotos conj file)))
         (add-to-message-log! (notify-msg-create {:files (:white files) :heading "В папку 01_PRODUCTION_FILES/01_ABRIS/\n"})))
 
       (when (not-empty (:regular-hot-dir files))
+        (set-progress-stage! "regular-hot-dir")
         (doseq [file (:regular-hot-dir files)]
+          (log-file-progress! "regular-hot-dir" (fs/file-name file) "copy/move/compress")
           (if (check-dimm file)
             (let [out-path-source (str (:out-path env) (create-path-with-root file "03_SOURCE_1_1/"))
                   out-path (str (:out-path env) (create-path-with-root file "04_SKU_INTERNAL_1_1/"))]
@@ -142,7 +256,9 @@
                                       (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files)))))))
 
       (when (not-empty (:regular-hot-dir-wb files))
+        (set-progress-stage! "regular-hot-dir-wb")
         (doseq [file (:regular-hot-dir-wb files)]
+          (log-file-progress! "regular-hot-dir-wb" (fs/file-name file) "copy/move/compress")
           (if (check-dimm file)
             (let [out-path-source (str (:out-path env) (create-path-with-root file "03_SOURCE_3_4/"))
                   out-path (str (:out-path env) (create-path-with-root file "04_SKU_INTERNAL_3_4/"))]
@@ -157,12 +273,16 @@
                                       (remove #(contains? (set @err-fotos) %) (:regular-hot-dir files)))))))
 
       (when (not-empty (:smm files))
+        (set-progress-stage! "smm")
         (doseq [file (:smm files)]
+          (log-file-progress! "smm" (fs/file-name file) "move")
           (move-file file))
         (add-to-message-log! (notify-msg-create {:files (:smm files) :heading "В папку СММ\n"})))
 
       (when (not-empty (:banners files))
+        (set-progress-stage! "banners")
         (doseq [file (:banners files)]
+          (log-file-progress! "banners" (fs/file-name file) "move")
           (move-file file))
         (add-to-message-log! (notify-msg-create {:files (:banners files) :heading "В папку 05_COLLECTIONS_BANNERS\n"})))
 
@@ -208,7 +328,9 @@
         (add-to-message-log! (notify-msg-create {:files (:news-ALL files) :heading "В папку 05_COLLECTIONS_ADV\\02_NEWS/\n"})))
       
       (when (not-empty (:3d files))
+        (set-progress-stage! "3d")
         (doseq [file (:3d files)]
+          (log-file-progress! "3d" (fs/file-name file) "move/upload")
           (let [out-path (str (:out-path env) (create-path-with-root file "04_SKU_3D_FOR_DESIGNERS/"))]
             (when-not (fs/exists? out-path) (fs/create-dirs out-path))
             (fs/move file out-path {:replace-existing true :atomic-move true})
@@ -216,7 +338,9 @@
         (add-to-message-log! (notify-msg-create {:files (:3d files) :heading "В папку 04_SKU_3D_FOR_DESIGNERS/\n"})))
 
       (when (not-empty (:white files))
+        (set-progress-stage! "white")
         (doseq [file (:white files)]
+          (log-file-progress! "white" (fs/file-name file) "copy")
           (let [path (str (:out-path env) (create-path-with-root file "04_SKU_PNG_WHITE/"))]
             (fs/create-dirs path)
             (fs/copy file path {:replace-existing true})
@@ -232,7 +356,9 @@
 
       (if (not-empty (:to-upload files))
         (do
+          (set-progress-stage! "upload-to-server")
           (doseq [art (:to-upload files)]
+            (log-file-progress! "upload-to-server" art "upload")
             (try
               (when-not (:debug env)
                 (upload-fotos art))
@@ -246,6 +372,7 @@
                   :err? true})))
 
     (catch Exception e
+      (append-progress! (str "error: " (.getMessage e)))
       (send-message! (str "caught exception send-message!: " (.getMessage e)))
       (println (str "caught exception send-message!: " (.getMessage e))))))
 
@@ -286,8 +413,9 @@
              [:li (fs/file-name file)])]])]
       (when (> (count (concat (:all-valid files) (:all-valid-wb files))) 0)
         [:div {:class "flex flex-col items-center pt-10"}
-         [:button {:type "submit" :hx-post "/hot-dir-upload" :hx-swap "outerHTML" :class "btn btn-primary btn-wide"} "Загрузить"
+         [:button {:type "submit" :hx-post "/hot-dir-upload" :hx-target "#upload-live-log" :hx-swap "innerHTML" :class "btn btn-primary btn-wide"} "Загрузить"
           [:img {:class "htmx-indicator" :src "https://htmx.org/img/bars.svg" :alt "Загрузка..."}]]])
+      [:div {:id "upload-live-log" :class "container mx-auto"} (progress-ui-fragment)]
       [:br]
       [:div {:class "divider"}]
       [:br]
@@ -303,7 +431,23 @@
        [:button {:hx-post "/update" :hx-swap "outerHTML" :class "btn btn-success mb-4"} "Обновить список артикулов из 1с"]
        [:a {:href "/upd-products" :class "btn btn-info mb-4"} "Обновить продукты на сервере"]
        [:a {:href "/reindex" :class "btn btn-secondary mb-4"} "Переиндексировать сайт"]
-       [:a {:href "/manuals" :class "btn btn-secondary"} "Загрузить инструкции"]]])))
+       [:a {:href "/manuals" :class "btn btn-secondary"} "Загрузить инструкции"]]
+      [:script "
+function scrollUploadLogToBottom() {
+  var el = document.getElementById('upload-log-scroll');
+  if (el) {
+    el.scrollTop = el.scrollHeight;
+  }
+}
+document.addEventListener('DOMContentLoaded', scrollUploadLogToBottom);
+document.body.addEventListener('htmx:afterSwap', function (evt) {
+  var target = evt && evt.detail && evt.detail.target;
+  if (!target) return;
+  if (target.id === 'upload-live-log' || target.id === 'upload-progress-panel') {
+    scrollUploadLogToBottom();
+  }
+});
+"]])))
 
 (defn json-response [data]
   (-> (generate-string data)
@@ -373,8 +517,9 @@
     :else [value]))
 
 (defn proxy-panel-fragment
-  ([] (proxy-panel-fragment nil))
-  ([flash]
+  ([] (proxy-panel-fragment {}))
+  ([{:keys [flash preserve-state? links-value]
+     :or {flash nil preserve-state? true links-value ""}}]
    (let [proxies (proxy/list-proxies)
          rows (for [{:keys [id type server port latency-ms last-check-at last-error] :as p} proxies]
                 (let [checkbox-id (str "proxy-checkbox-" (str/replace id #"[^A-Za-z0-9_-]" "_"))]
@@ -383,7 +528,7 @@
                                :type "checkbox"
                                :name "items"
                                :value id
-                               :hx-preserve "true"}]]
+                               :hx-preserve (when preserve-state? "true")}]]
                  [:td [:code id]]
                  [:td (name type)]
                  [:td server]
@@ -431,8 +576,9 @@
                :hx-indicator "#proxy-loading-indicator"}
         [:textarea {:name "links"
                     :id "proxy-links-input"
-                    :hx-preserve "true"
+                    :hx-preserve (when preserve-state? "true")
                     :rows 8
+                    :value links-value
                     :class "w-full p-2 textarea textarea-primary"
                     :placeholder "Вставьте ссылки по одной на строку..."}]
         [:div {:class "mt-3"}
@@ -485,7 +631,7 @@
             :hx-target "#proxy-panel"
             :hx-swap "outerHTML"
             :hx-indicator "#proxy-loading-indicator"}
-      (proxy-panel-fragment nil)]
+      (proxy-panel-fragment {:preserve-state? true})]
      [:script "
 document.addEventListener('change', function (e) {
   if (e.target && e.target.id === 'auto-refresh-toggle') {
@@ -515,56 +661,76 @@ document.addEventListener('click', function (e) {
 (defn proxy-ui-add-handler [request]
   (let [links (get-in request [:params :links] "")]
     (if (str/blank? links)
-      (html-fragment-response (proxy-panel-fragment {:type :error :message "Вставьте хотя бы одну ссылку"}))
+      (html-fragment-response (proxy-panel-fragment {:flash {:type :error :message "Вставьте хотя бы одну ссылку"}
+                                                     :preserve-state? true
+                                                     :links-value links}))
       (let [result (proxy/add-proxies-validated! links)]
         (proxy/refresh-proxy-status!)
         (if (pos? (:invalid result))
           (html-fragment-response
-           (proxy-panel-fragment {:type :error
-                                  :message (str "Отклонено ссылок: " (:invalid result))
-                                  :details (:invalid-items result)}))
+           (proxy-panel-fragment {:flash {:type :error
+                                          :message (str "Отклонено ссылок: " (:invalid result))
+                                          :details (:invalid-items result)}
+                                  :preserve-state? true
+                                  :links-value links}))
           (html-fragment-response
-           (proxy-panel-fragment {:type :success
-                                  :message (str "Добавлено прокси: " (:added result))})))))))
+           (proxy-panel-fragment {:flash {:type :success
+                                          :message (str "Добавлено прокси: " (:added result))}
+                                  :preserve-state? false
+                                  :links-value ""})))))))
 
 (defn proxy-ui-remove-handler [request]
   (let [items (-> request :params :items normalize-to-vec)]
     (when (seq items)
       (proxy/remove-proxies! items))
-    (html-fragment-response (proxy-panel-fragment {:type :success :message "Выбранные прокси удалены"}))))
+    (html-fragment-response (proxy-panel-fragment {:flash {:type :success :message "Выбранные прокси удалены"}
+                                                   :preserve-state? false
+                                                   :links-value ""}))))
 
 (defn proxy-ui-refresh-handler [_]
   (proxy/refresh-proxy-status!)
-  (html-fragment-response (proxy-panel-fragment {:type :success :message "Статусы обновлены"})))
+  (html-fragment-response (proxy-panel-fragment {:flash {:type :success :message "Статусы обновлены"}
+                                                 :preserve-state? false
+                                                 :links-value ""})))
 
 (defn proxy-ui-panel-handler [_]
-  (html-fragment-response (proxy-panel-fragment)))
+  (html-fragment-response (proxy-panel-fragment {:preserve-state? true})))
 
 (defn hotdir-handler [_]
   (try
     (if (true? @blocked)
-      (-> (h/html
-           [:div {:class "flex flex-col items-center pt-10"}
-            [:h1 "Фото Загружаются кем то другим, подождите пару минут и повторите попытку"]
-            [:a {:href "/" :class "p-10 btn btn-success"} "Обновить страницу"]])
-          str)
+      (-> (h/html (progress-ui-fragment)) str)
       (do
         (swap! blocked (constantly true))
-        (send-files!)
-        (swap! blocked (constantly false))
-        (-> (h/html
-             [:div {:class "flex flex-col items-center pt-10"}
-              [:h1 "Фото сжаты, разложены по папкам и отправлены на сервер"]
-              [:a {:href "/" :class "p-10 btn btn-success"} "Обновить страницу"]])
-            str)))
+        (let [files (get-files)]
+          (reset-progress! (calculate-stage-totals files)))
+        (append-progress! "Запущена обработка файлов")
+        (future
+          (try
+            (send-files!)
+            (set-progress-stage! "done")
+            (append-progress! "Обработка завершена")
+            (finally
+              (finish-progress!)
+              (swap! blocked (constantly false)))))
+        (-> (h/html (progress-ui-fragment)) str)))
 
     (catch Exception e
       (swap! blocked (constantly false))
-      (-> (h/html
-           [:h1 "Что то пошло не так"]
-           [:h2 e]
-           [:a {:href "/"} "Обновить страницу"])
-          str))))
+      (finish-progress!)
+      (append-progress! (str "error: " (.getMessage e)))
+      (-> (h/html (progress-ui-fragment)) str))))
+
+(defn hotdir-progress-handler [_]
+  (let [{:keys [running? stage entries started-at finished-at]} @upload-progress]
+    {:running running?
+     :stage stage
+     :entries entries
+     :started-at started-at
+     :finished-at finished-at}))
+
+(defn hotdir-progress-ui-handler [_]
+  (-> (h/html (progress-ui-fragment)) str))
 
 (defn update-handler [_]
   (try (update-articles!)
@@ -668,6 +834,17 @@ document.addEventListener('click', function (e) {
                (-> (hotdir-handler request)
                    (response/response)
                    (response/header "content-type" "text/html")))}]
+     ["/hot-dir-upload/progress"
+      {:get (fn [request]
+              (-> (hotdir-progress-handler request)
+                  (generate-string)
+                  (response/response)
+                  (response/header "content-type" "application/json")))}]
+     ["/hot-dir-upload/progress-ui"
+      {:get (fn [request]
+              (-> (hotdir-progress-ui-handler request)
+                  (response/response)
+                  (response/header "content-type" "text/html")))}]
      ["/upload"
       {:post (fn [request]
                (-> (upload-to-server request)
