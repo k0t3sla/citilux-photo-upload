@@ -323,8 +323,14 @@
     (let [body (slurp (:body request))
           payload (when-not (str/blank? body) (parse-json-safely body))
           links (or (:links payload) body)
-          result (proxy/add-proxies! links)]
-      (json-response result))
+          result (proxy/add-proxies-validated! links)]
+      (if (pos? (:invalid result))
+        (-> (json-response {:error "Часть ссылок отклонена"
+                            :invalid-items (:invalid-items result)
+                            :added (:added result)
+                            :invalid (:invalid result)})
+            (response/status 400))
+        (json-response result)))
     (catch Exception e
       (-> (json-response {:error (.getMessage e)})
           (response/status 400)))))
@@ -366,77 +372,129 @@
     (sequential? value) (vec value)
     :else [value]))
 
+(defn proxy-panel-fragment
+  ([] (proxy-panel-fragment nil))
+  ([flash]
+   (let [proxies (proxy/list-proxies)
+         rows (for [{:keys [id type server port latency-ms last-check-at last-error] :as p} proxies]
+                [:tr
+                 [:td [:input {:type "checkbox" :name "items" :value id}]]
+                 [:td [:code id]]
+                 [:td (name type)]
+                 [:td server]
+                 [:td port]
+                 [:td (status-badge p)]
+                 [:td (or latency-ms "-")]
+                 [:td (or last-check-at "-")]
+                 [:td (or last-error "-")]])]
+     [:div {:id "proxy-panel"}
+      [:div {:id "proxy-loading-indicator"
+             :class "htmx-indicator mb-4 flex items-center gap-2 text-sm text-gray-600"}
+       [:img {:src "https://htmx.org/img/bars.svg" :alt "Загрузка..." :class "w-5 h-5"}]
+       [:span "Обновление..."]]
+      (when flash
+        [:div {:class (str "mb-4 p-3 rounded text-white "
+                           (if (= :error (:type flash)) "bg-red-600" "bg-green-600"))}
+         [:div (:message flash)]
+         (when-let [items (:details flash)]
+           [:ul {:class "mt-2 list-disc pl-4"}
+            (for [{:keys [input error]} items]
+              [:li (str (if (str/blank? input) "<empty>" input) " -> " error)])])])
+      [:div {:class "mb-4"}
+       (if (proxy/any-proxy-alive?)
+         [:span {:class "inline-block px-4 py-2 rounded text-white bg-green-600"} "Есть рабочие прокси"]
+         [:span {:class "inline-block px-4 py-2 rounded text-white bg-red-600"} "Рабочих прокси нет"])]
+      [:form {:hx-post "/proxy/ui/refresh"
+              :hx-target "#proxy-panel"
+              :hx-swap "outerHTML"
+              :hx-indicator "#proxy-loading-indicator"
+              :class "mb-6"}
+       [:button {:type "submit" :class "btn btn-primary"} "Обновить статусы (ping)"]]
+      [:div {:class "mb-8"}
+       [:h2 {:class "text-lg mb-2"} "Добавить прокси списком"]
+       [:form {:hx-post "/proxy/ui/add"
+               :hx-target "#proxy-panel"
+               :hx-swap "outerHTML"
+               :hx-indicator "#proxy-loading-indicator"}
+        [:textarea {:name "links"
+                    :rows 8
+                    :class "w-full p-2 textarea textarea-primary"
+                    :placeholder "Вставьте ссылки по одной на строку..."}]
+        [:div {:class "mt-3"}
+         [:button {:type "submit" :class "btn btn-success"} "Добавить"]]]]
+      [:div
+       [:h2 {:class "text-lg mb-2"} "Сохраненные прокси"]
+       [:form {:hx-post "/proxy/ui/remove"
+               :hx-target "#proxy-panel"
+               :hx-swap "outerHTML"
+               :hx-indicator "#proxy-loading-indicator"}
+        [:table {:class "table w-full"}
+         [:thead
+          [:tr
+           [:th ""]
+           [:th "ID"]
+           [:th "Type"]
+           [:th "Server"]
+           [:th "Port"]
+           [:th "Status"]
+           [:th "Latency"]
+           [:th "Last check"]
+           [:th "Error"]]]
+         (into [:tbody] rows)]
+        [:div {:class "mt-3"}
+         [:button {:type "submit" :class "btn btn-error"} "Удалить выбранные"]]]]])))
+
+(defn html-fragment-response [fragment]
+  (-> (str (h/html fragment))
+      (response/response)
+      (response/header "content-type" "text/html; charset=utf-8")))
+
 (defn proxy-page [_]
-  (let [proxies (proxy/list-proxies)
-        rows (for [{:keys [id type server port latency-ms last-check-at last-error] :as p} proxies]
-               [:tr
-                [:td [:input {:type "checkbox" :name "items" :value id}]]
-                [:td [:code id]]
-                [:td (name type)]
-                [:td server]
-                [:td port]
-                [:td (status-badge p)]
-                [:td (or latency-ms "-")]
-                [:td (or last-check-at "-")]
-                [:td (or last-error "-")]])]
-    (hiccup/html5
-     [:body
-      [:head (hiccup/include-css "styles.css" "additional.css")]
-      [:main {:class "container mx-auto p-6"}
-       [:div {:class "flex items-center justify-between mb-6"}
-        [:h1 {:class "text-2xl font-bold"} "Proxy Manager"]
-        [:a {:href "/" :class "btn btn-secondary"} "На главную"]]
-       [:div {:class "mb-4"}
-        (if (proxy/any-proxy-alive?)
-          [:span {:class "inline-block px-4 py-2 rounded text-white bg-green-600"} "Есть рабочие прокси"]
-          [:span {:class "inline-block px-4 py-2 rounded text-white bg-red-600"} "Рабочих прокси нет"])]
-       [:form {:method "post" :action "/proxy/ui/refresh" :class "mb-6"}
-        [:button {:type "submit" :class "btn btn-primary"} "Обновить статусы (ping)"]]
-       [:div {:class "mb-8"}
-        [:h2 {:class "text-lg mb-2"} "Добавить прокси списком"]
-        [:form {:method "post" :action "/proxy/ui/add"}
-         [:textarea {:name "links"
-                     :rows 8
-                     :class "w-full p-2 textarea textarea-primary"
-                     :placeholder "Вставьте ссылки по одной на строку..."}]
-         [:div {:class "mt-3"}
-          [:button {:type "submit" :class "btn btn-success"} "Добавить"]]]]
-       [:div
-        [:h2 {:class "text-lg mb-2"} "Сохраненные прокси"]
-        [:form {:method "post" :action "/proxy/ui/remove"}
-         [:table {:class "table w-full"}
-          [:thead
-           [:tr
-            [:th ""]
-            [:th "ID"]
-            [:th "Type"]
-            [:th "Server"]
-            [:th "Port"]
-            [:th "Status"]
-            [:th "Latency"]
-            [:th "Last check"]
-            [:th "Error"]]]
-          (into [:tbody] rows)]
-         [:div {:class "mt-3"}
-          [:button {:type "submit" :class "btn btn-error"} "Удалить выбранные"]]]]]])))
+  (hiccup/html5
+   [:body
+    [:head (hiccup/include-css "styles.css" "additional.css")]
+    [:head (hiccup/include-js "htmx.js")]
+    [:main {:class "container mx-auto p-6"}
+     [:div {:class "flex items-center justify-between mb-6"}
+      [:h1 {:class "text-2xl font-bold"} "Proxy Manager"]
+      [:a {:href "/" :class "btn btn-secondary"} "На главную"]]
+     ;; polling updates status/table every 10s without full page reload
+     [:div {:id "proxy-panel-polling"
+            :hx-get "/proxy/ui/panel"
+            :hx-trigger "every 10s"
+            :hx-target "#proxy-panel"
+            :hx-swap "outerHTML"
+            :hx-indicator "#proxy-loading-indicator"}
+      (proxy-panel-fragment nil)]]]))
 
 
 (defn proxy-ui-add-handler [request]
   (let [links (get-in request [:params :links] "")]
-    (when-not (str/blank? links)
-      (proxy/add-proxies! links)
-      (proxy/refresh-proxy-status!))
-    (response/redirect "/proxy")))
+    (if (str/blank? links)
+      (html-fragment-response (proxy-panel-fragment {:type :error :message "Вставьте хотя бы одну ссылку"}))
+      (let [result (proxy/add-proxies-validated! links)]
+        (proxy/refresh-proxy-status!)
+        (if (pos? (:invalid result))
+          (html-fragment-response
+           (proxy-panel-fragment {:type :error
+                                  :message (str "Отклонено ссылок: " (:invalid result))
+                                  :details (:invalid-items result)}))
+          (html-fragment-response
+           (proxy-panel-fragment {:type :success
+                                  :message (str "Добавлено прокси: " (:added result))})))))))
 
 (defn proxy-ui-remove-handler [request]
   (let [items (-> request :params :items normalize-to-vec)]
     (when (seq items)
       (proxy/remove-proxies! items))
-    (response/redirect "/proxy")))
+    (html-fragment-response (proxy-panel-fragment {:type :success :message "Выбранные прокси удалены"}))))
 
 (defn proxy-ui-refresh-handler [_]
   (proxy/refresh-proxy-status!)
-  (response/redirect "/proxy"))
+  (html-fragment-response (proxy-panel-fragment {:type :success :message "Статусы обновлены"})))
+
+(defn proxy-ui-panel-handler [_]
+  (html-fragment-response (proxy-panel-fragment)))
 
 (defn hotdir-handler [_]
   (try
@@ -606,6 +664,8 @@
       {:post proxy-ui-remove-handler}]
      ["/proxy/ui/refresh"
       {:post proxy-ui-refresh-handler}]
+     ["/proxy/ui/panel"
+      {:get proxy-ui-panel-handler}]
      ["/update"
       {:post (fn [request]
                (-> (update-handler request)

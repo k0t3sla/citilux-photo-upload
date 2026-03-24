@@ -17,7 +17,7 @@
         port (:mtproxy-port env)
         _secret (:mtproxy-secret env)]
     (when (and host port)
-      (str host ":" port))))
+      (str "http://" host ":" port))))
 
 (defn send-message! [text]
   (let [url (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
@@ -30,7 +30,8 @@
                       :conn-timeout 5000
                       :throw-exceptions false}
         proxies (->> (concat (proxy/candidate-request-proxies) [(build-proxy-url) nil])
-                     (remove str/blank?)
+                     ;; keep nil as explicit "send without proxy" fallback
+                     (remove #(and (string? %) (str/blank? %)))
                      distinct)
         attempt-send (fn [proxy-url]
                        (let [opts (if proxy-url

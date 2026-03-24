@@ -68,6 +68,33 @@
          :last-error nil}))
     (catch Exception _ nil)))
 
+(defn validate-proxy-link [raw]
+  (let [raw (str/trim (str raw))]
+    (cond
+      (str/blank? raw)
+      {:valid? false :input raw :error "Пустая строка"}
+
+      :else
+      (try
+        (let [uri (URI. raw)
+              scheme (some-> (.getScheme uri) str/lower-case)
+              path (or (.getPath uri) "")
+              parsed (parse-proxy-link raw)]
+          (cond
+            (not (contains? #{"http" "https"} scheme))
+            {:valid? false :input raw :error "Неподдерживаемая схема URL. Разрешены только http/https"}
+
+            (not (contains? #{"/socks" "/proxy"} path))
+            {:valid? false :input raw :error "Неподдерживаемый путь. Разрешены только /socks и /proxy"}
+
+            (nil? parsed)
+            {:valid? false :input raw :error "Некорректные параметры proxy-ссылки"}
+
+            :else
+            {:valid? true :proxy parsed}))
+        (catch Exception _
+          {:valid? false :input raw :error "Некорректный URL"})))))
+
 (defn- ensure-storage-parent! [path]
   (let [parent (fs/parent path)]
     (when parent (fs/create-dirs parent))))
@@ -112,6 +139,30 @@
     (save-proxies!)
     {:added (count parsed)
      :invalid invalid-count
+     :total (count (:proxies @proxy-state))}))
+
+(defn add-proxies-validated! [items]
+  (let [raw-items (cond
+                    (string? items) (->> (str/split-lines items) (map str/trim) (remove str/blank?))
+                    (sequential? items) (map str items)
+                    :else [])
+        checks (mapv validate-proxy-link raw-items)
+        parsed (keep :proxy checks)
+        invalid-items (->> checks (remove :valid?) (mapv #(select-keys % [:input :error])))]
+    (swap! proxy-state
+           (fn [{:keys [proxies] :as state}]
+             (let [by-id (into {} (map (juxt :id identity) proxies))
+                   merged (reduce (fn [acc p]
+                                    (assoc acc (:id p) (if-let [old (get acc (:id p))]
+                                                         (merge-proxy old p)
+                                                         p)))
+                                  by-id
+                                  parsed)]
+               (assoc state :proxies (vec (vals merged))))))
+    (save-proxies!)
+    {:added (count parsed)
+     :invalid (count invalid-items)
+     :invalid-items invalid-items
      :total (count (:proxies @proxy-state))}))
 
 (defn remove-proxies! [ids-or-urls]
@@ -162,7 +213,16 @@
 (defn candidate-request-proxies []
   (->> (:proxies @proxy-state)
        (sort-by (fn [p] [(not (:alive? p)) (or (:latency-ms p) 999999)]))
-       (mapv :request-proxy)
+       ;; clj-http expects proxy URL with scheme, plain host:port is invalid
+       (mapv (fn [{:keys [server port request-proxy]}]
+               (or (when (and (string? request-proxy)
+                              (re-find #"^[a-zA-Z][a-zA-Z0-9+.-]*://" request-proxy))
+                     request-proxy)
+                   (when (and (not (str/blank? server)) (integer? port))
+                     (str "http://" server ":" port))
+                   (when (and (string? request-proxy) (not (str/blank? request-proxy)))
+                     (str "http://" request-proxy)))))
+       (remove str/blank?)
        distinct))
 
 (defn any-proxy-alive? []

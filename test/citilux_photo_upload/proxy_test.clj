@@ -13,6 +13,12 @@
       (is (= :mtproxy (:type mt)))
       (is (= 443 (:port mt))))))
 
+(deftest validate-proxy-link-scheme-test
+  (testing "Rejects unsupported URL schemes"
+    (let [bad (proxy/validate-proxy-link "ftp://t.me/proxy?server=1.1.1.1&port=443&secret=x")]
+      (is (false? (:valid? bad)))
+      (is (= "Неподдерживаемая схема URL. Разрешены только http/https" (:error bad))))))
+
 (deftest add-remove-proxy-test
   (testing "Adds and removes proxies"
     (reset! proxy/proxy-state {:proxies []})
@@ -30,6 +36,14 @@
             {:proxies [{:id "a" :raw-url "https://t.me/proxy?server=a&port=1" :request-proxy "a:1" :alive? false}
                        {:id "b" :raw-url "https://t.me/proxy?server=b&port=2" :request-proxy "b:2" :alive? true}]})
     (is (= "https://t.me/proxy?server=b&port=2" (proxy/get-working-proxy-url)))))
+
+(deftest candidate-request-proxies-with-scheme-test
+  (testing "Returns proxy urls with explicit scheme for clj-http"
+    (reset! proxy/proxy-state
+            {:proxies [{:id "a" :server "1.2.3.4" :port 1080 :request-proxy "1.2.3.4:1080" :alive? true}
+                       {:id "b" :server "2.3.4.5" :port 8080 :request-proxy "http://2.3.4.5:8080" :alive? false}]})
+    (is (= ["http://1.2.3.4:1080" "http://2.3.4.5:8080"]
+           (proxy/candidate-request-proxies)))))
 
 (deftest save-load-test
   (testing "Serializes and deserializes proxy storage"
