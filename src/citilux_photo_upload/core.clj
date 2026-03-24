@@ -386,7 +386,16 @@
                  [:td (status-badge p)]
                  [:td (or latency-ms "-")]
                  [:td (or last-check-at "-")]
-                 [:td (or last-error "-")]])]
+                 [:td (or last-error "-")]
+                 [:td
+                  (if-let [raw-url (:raw-url p)]
+                    [:a {:href raw-url
+                         :target "_blank"
+                         :rel "noopener noreferrer"
+                         :title "Открыть ссылку прокси для копирования"
+                         :class "text-xl"}
+                     "🔗"]
+                    "-")]])]
      [:div {:id "proxy-panel"}
       [:div {:id "proxy-loading-indicator"
              :class "htmx-indicator mb-4 flex items-center gap-2 text-sm text-gray-600"}
@@ -439,7 +448,8 @@
            [:th "Status"]
            [:th "Latency"]
            [:th "Last check"]
-           [:th "Error"]]]
+           [:th "Error"]
+           [:th "Link"]]]
          (into [:tbody] rows)]
         [:div {:class "mt-3"}
          [:button {:type "submit" :class "btn btn-error"} "Удалить выбранные"]]]]])))
