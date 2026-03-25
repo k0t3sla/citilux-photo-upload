@@ -675,11 +675,40 @@ document.addEventListener('click', function (e) {
   if (!btn) return;
   var url = btn.getAttribute('data-proxy-url');
   if (!url) return;
-  navigator.clipboard.writeText(url).then(function () {
-    var old = btn.textContent;
-    btn.textContent = '✅';
-    setTimeout(function () { btn.textContent = old; }, 900);
-  });
+  var originalText = btn.textContent;
+  function flash(text) {
+    btn.textContent = text;
+    setTimeout(function () { btn.textContent = originalText; }, 900);
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.left = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) flash('✅'); else flash('❌');
+      return ok;
+    } catch (err) {
+      document.body.removeChild(ta);
+      flash('❌');
+      return false;
+    }
+  }
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    navigator.clipboard.writeText(url).then(function () {
+      flash('✅');
+    }).catch(function () {
+      fallbackCopy(url);
+    });
+  } else {
+    fallbackCopy(url);
+  }
 });
 "]]]))
 
