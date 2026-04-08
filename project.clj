@@ -18,6 +18,7 @@
                  [net.mikera/imagez "0.12.0"] 
 
                  [ring/ring-defaults "0.3.2"]
+                 [org.clojure/tools.logging "1.3.0"]
 
                  [commons-io/commons-io "2.11.0"]
                  [yogthos/config "1.2.0"]]

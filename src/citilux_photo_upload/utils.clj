@@ -7,57 +7,79 @@
             [clojure.walk :as walk]
             [mikera.image.core :as img]
             [clojure.string :as str]
-            [citilux-photo-upload.proxy :as proxy])
+            [citilux-photo-upload.tg-ws-proxy :as tg-ws-proxy])
+  (:import [java.time Instant])
   (:gen-class))
 
-(defn- build-proxy-url
-  "Создание URL для MTProxy если параметры настроены"
-  []
-  (let [host (:mtproxy-host env)
-        port (:mtproxy-port env)
-        _secret (:mtproxy-secret env)]
-    (when (and host port)
-      (str "http://" host ":" port))))
+(defonce messages-queue (atom []))
+
+(defonce ^:private sender-running? (atom false))
+(defonce ^:private ws-conn (atom nil))
+
+(defn- now-iso [] (str (Instant/now)))
+
+(defn- ensure-ws-conn! []
+  (or @ws-conn
+      (let [dc-id (or (:tg-dc-id env) 2)
+            conn (tg-ws-proxy/connect-ws dc-id)]
+        (reset! ws-conn conn)
+        conn)))
+
+(defn- try-send-telegram! [text]
+  (try
+    (let [conn (ensure-ws-conn!)
+          ;; tg_ws_proxy работает с бинарными данными, отправляем UTF-8 payload.
+          _ (tg-ws-proxy/send-msg conn text)]
+      {:ok true})
+    (catch Exception e
+      (when-let [conn @ws-conn]
+        (try
+          (tg-ws-proxy/disconnect conn)
+          (catch Exception _ nil)))
+      (reset! ws-conn nil)
+      {:ok false :error (.getMessage e)})))
+
+(defn- update-message-by-id [queue id f]
+  (mapv (fn [m] (if (= (:id m) id) (f m) m)) queue))
+
+(defn- process-pending-messages! []
+  (loop []
+    (let [pending (->> @messages-queue (filter #(= :pending (:status %))))]
+      (doseq [{:keys [id text]} pending]
+        (let [result (try-send-telegram! text)]
+          (if (:ok result)
+            (swap! messages-queue update-message-by-id id
+                   #(assoc % :status :sent :sent-at (now-iso)))
+            (swap! messages-queue update-message-by-id id
+                   #(-> %
+                        (update :attempts inc)
+                        (assoc :last-error (:error result)))))))
+      (Thread/sleep (if (seq pending) 10000 5000)))
+    (recur)))
+
+(defn start-message-sender! []
+  (when (compare-and-set! sender-running? false true)
+    (future
+      (try
+        (process-pending-messages!)
+        (catch Exception e
+          (println "Message sender crashed:" (.getMessage e))
+          (reset! sender-running? false))))))
 
 (defn send-message! [text]
-  (let [url (str "https://api.telegram.org/bot" (:tbot env) "/sendMessage")
-        request-opts {:body (generate-string {:chat_id (:chat_id env) :text text :parse_mode "HTML"})
-                      :headers {"Content-Type" "application/json"
-                                "Accept" "application/json"}
-                      :as :json
-                      :coerce :always
-                      :socket-timeout 5000
-                      :conn-timeout 5000
-                      :throw-exceptions false}
-        proxies (->> (concat (proxy/candidate-request-proxies) [(build-proxy-url) nil])
-                     ;; keep nil as explicit "send without proxy" fallback
-                     (remove #(and (string? %) (str/blank? %)))
-                     distinct)
-        attempt-errors (atom [])
-        attempt-send (fn [proxy-url]
-                       (try
-                         (let [opts (if proxy-url
-                                      (assoc request-opts :proxy proxy-url)
-                                      request-opts)
-                               resp (client/post url opts)]
-                           (if (and (<= 200 (:status resp) 299)
-                                    (or (true? (get-in resp [:body :ok]))
-                                        (str/includes? (str (:body resp)) "\"ok\":true")))
-                             resp
-                             (do
-                               (swap! attempt-errors conj {:proxy proxy-url
-                                                           :status (:status resp)
-                                                           :body (str (:body resp))})
-                               nil)))
-                         (catch Exception e
-                           (swap! attempt-errors conj {:proxy proxy-url
-                                                       :error (.getMessage e)})
-                           nil)))]
-    (or
-     (some attempt-send proxies)
-     (throw (ex-info "Не удалось отправить Telegram сообщение через все прокси"
-                     {:proxy-count (count proxies)
-                      :errors @attempt-errors})))))
+  (let [msg {:id (str (random-uuid))
+             :text text
+             :status :pending
+             :created-at (now-iso)
+             :sent-at nil
+             :attempts 0
+             :last-error nil}]
+    (swap! messages-queue conj msg)
+    (start-message-sender!)
+    msg))
+
+(comment
+  (send-message! "test"))
 
 (defn parse-resp [resp]
   (str/split (apply str (->> resp
@@ -409,4 +431,6 @@
 
   (send-message! "test")
 
-  ())
+  (try-send-telegram! "test")
+  ()
+  )

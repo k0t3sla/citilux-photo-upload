@@ -3,7 +3,6 @@
             [clojure.string :as str]
             [babashka.fs :as fs]
             [citilux-photo-upload.utils :refer :all]
-            [citilux-photo-upload.proxy :as proxy]
             [mitheo.redefining-private :refer (redef-privately)]))
 
 (defn mock-file
@@ -515,26 +514,12 @@
     (is (= "test" (:tbot env)))
     (is (= 123 (:chat_id env))))  )
 
-(deftest test-send-message-failover-next-proxy
-  (testing "send-message! switches to next proxy when previous fails"
-    (redef-privately 'citilux-photo-upload.utils/env {:tbot "bot" :chat_id 123})
-    (with-redefs [proxy/candidate-request-proxies (fn [] ["bad:8080" "good:8080"])
-                  clj-http.client/post (fn [_url opts]
-                                         (if (= "bad:8080" (:proxy opts))
-                                           {:status 500 :body {:ok false}}
-                                           {:status 200 :body {:ok true}}))]
-      (is (= true (-> (send-message! "hello") :body :ok))))))
-
-(deftest test-send-message-stops-after-success
-  (testing "send-message! finishes when first proxy succeeds"
-    (redef-privately 'citilux-photo-upload.utils/env {:tbot "bot" :chat_id 123})
-    (let [calls (atom 0)]
-      (with-redefs [proxy/candidate-request-proxies (fn [] ["good:8080" "unused:8080"])
-                    clj-http.client/post (fn [_url _opts]
-                                           (swap! calls inc)
-                                           {:status 200 :body {:ok true}})]
-        (send-message! "hello")
-        (is (= 1 @calls))))))
+(deftest test-send-message-enqueues
+  (testing "send-message! adds message to queue with :pending status"
+    (let [result (send-message! "test-from-utils")]
+      (is (= :pending (:status result)))
+      (is (= "test-from-utils" (:text result)))
+      (is (= 0 (:attempts result))))))
 
 (deftest test-filters-empty-extension
   (testing "Handles files without extension gracefully"

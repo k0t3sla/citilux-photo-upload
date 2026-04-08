@@ -41,6 +41,8 @@
                                                 notify-msg-create
                                                 report-imgs-1c!
                                                 send-message!
+                                                messages-queue
+                                                start-message-sender!
                                                 article-stat-handler
                                                 general-stat-handler
                                                 all-articles
@@ -454,6 +456,7 @@
           [:span {:class "inline-block px-4 py-2 rounded text-white bg-green-600"} "Proxy: active"]
           [:span {:class "inline-block px-4 py-2 rounded text-white bg-red-600"} "Proxy: inactive"])]
        [:a {:href "/proxy" :class "btn btn-outline mb-4"} "Управление прокси"]
+       [:a {:href "/messages-log" :class "btn btn-outline mb-4"} "Лог сообщений"]
        [:button {:hx-post "/update" :hx-swap "outerHTML" :class "btn btn-success mb-4"} "Обновить список артикулов из 1с"]
        [:a {:href "/upd-products" :class "btn btn-info mb-4"} "Обновить продукты на сервере"]
        [:a {:href "/reindex" :class "btn btn-secondary mb-4"} "Переиндексировать сайт"]
@@ -636,6 +639,117 @@ document.body.addEventListener('htmx:afterSwap', function (evt) {
   (-> (str (h/html fragment))
       (response/response)
       (response/header "content-type" "text/html; charset=utf-8")))
+
+(defn- msg-status-badge [status]
+  (case status
+    :sent [:span {:class "px-2 py-1 rounded text-white bg-green-600"} "Отправлено"]
+    :pending [:span {:class "px-2 py-1 rounded text-white bg-yellow-600"} "В очереди"]
+    [:span {:class "px-2 py-1 rounded text-white bg-gray-500"} (str status)]))
+
+(defn- truncate-text [^String s max-len]
+  (if (> (count s) max-len)
+    (str (subs s 0 max-len) "...")
+    s))
+
+(defn messages-log-panel []
+  (let [msgs (reverse @messages-queue)
+        has-pending? (some #(= :pending (:status %)) msgs)]
+    [:div {:id "messages-panel"
+           :hx-get "/messages-log/panel"
+           :hx-trigger (if has-pending? "every 5s" "none")
+           :hx-swap "outerHTML"}
+     [:div {:class "mb-4 flex gap-3"}
+      [:span {:class "text-sm"} (str "Всего: " (count msgs))]
+      [:span {:class "text-sm"} (str "Отправлено: " (count (filter #(= :sent (:status %)) msgs)))]
+      [:span {:class "text-sm"} (str "В очереди: " (count (filter #(= :pending (:status %)) msgs)))]]
+     [:div {:class "mb-4"}
+      [:button {:class "btn btn-primary"
+                :hx-post "/messages-log/send-test"
+                :hx-target "#messages-panel"
+                :hx-swap "outerHTML"}
+       "Отправить тестовое сообщение"]]
+     [:table {:class "table w-full"}
+      [:thead
+       [:tr
+        [:th "Текст"]
+        [:th "Статус"]
+        [:th "Создано"]
+        [:th "Отправлено"]
+        [:th "Попыток"]
+        [:th "Ошибка"]
+        [:th "Копировать"]]]
+      (into [:tbody]
+            (for [{:keys [text status created-at sent-at attempts last-error]} msgs]
+              [:tr
+               [:td {:class "max-w-xs"} [:span {:title text} (truncate-text (str text) 80)]]
+               [:td (msg-status-badge status)]
+               [:td {:class "text-xs"} (or created-at "-")]
+               [:td {:class "text-xs"} (or sent-at "-")]
+               [:td attempts]
+               [:td {:class "text-xs max-w-xs truncate"} (or last-error "-")]
+               [:td
+                [:button {:type "button"
+                          :title "Скопировать сообщение"
+                          :class "text-xl copy-msg-btn"
+                          :data-msg-text text}
+                 "📋"]]]))]]))
+
+(defn messages-log-send-test-handler [_]
+  (send-message! (str "Тестовое сообщение из messages-log " (java.time.Instant/now)))
+  (html-fragment-response (messages-log-panel)))
+
+(defn messages-log-page [_]
+  (hiccup/html5
+   [:body
+    [:head (hiccup/include-css "styles.css" "additional.css")]
+    [:head (hiccup/include-js "htmx.js")]
+    [:main {:class "container mx-auto p-6"}
+     [:div {:class "flex items-center justify-between mb-6"}
+      [:h1 {:class "text-2xl font-bold"} "Лог сообщений Telegram"]
+      [:a {:href "/" :class "btn btn-secondary"} "На главную"]]
+     (messages-log-panel)
+     [:script "
+document.addEventListener('click', function (e) {
+  var btn = e.target && e.target.closest ? e.target.closest('.copy-msg-btn') : null;
+  if (!btn) return;
+  var text = btn.getAttribute('data-msg-text');
+  if (!text) return;
+  var originalText = btn.textContent;
+  function flash(t) {
+    btn.textContent = t;
+    setTimeout(function () { btn.textContent = originalText; }, 900);
+  }
+  function fallbackCopy(t) {
+    var ta = document.createElement('textarea');
+    ta.value = t;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.left = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) flash('✅'); else flash('❌');
+      return ok;
+    } catch (err) {
+      document.body.removeChild(ta);
+      flash('❌');
+      return false;
+    }
+  }
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    navigator.clipboard.writeText(text).then(function () {
+      flash('✅');
+    }).catch(function () {
+      fallbackCopy(text);
+    });
+  } else {
+    fallbackCopy(text);
+  }
+});
+"]]]))
 
 (defn proxy-page [_]
   (hiccup/html5
@@ -919,6 +1033,16 @@ document.addEventListener('click', function (e) {
                       generate-string)
                   (response/response)
                   (response/header "content-type" "application/json")))}]
+     ["/messages-log"
+      {:get (fn [request]
+              (-> (messages-log-page request)
+                  (response/response)
+                  (response/header "content-type" "text/html")))}]
+     ["/messages-log/panel"
+      {:get (fn [_]
+              (html-fragment-response (messages-log-panel)))}]
+     ["/messages-log/send-test"
+      {:post messages-log-send-test-handler}]
      ["/proxy/list"
       {:get proxy-list-handler}]
      ["/proxy"
@@ -986,13 +1110,16 @@ document.addEventListener('click', function (e) {
   (proxy/load-proxies!)
   (proxy/ensure-initial-proxies!)
   (proxy/refresh-proxy-status!)
-  (start-server))
+  (start-server)
+  (start-message-sender!))
 
 (comment
   (update-articles!)
 
 
-
+  (start-server)
+  (start-message-sender!)
+  
   (get-files)
   (send-files!)
   (start-server)
@@ -1005,4 +1132,5 @@ document.addEventListener('click', function (e) {
 
   (create-path-with-root "/home/k0t3sla/TMP/HOT_DIR/CL237B310_00.jpg" "04_SKU_PNG_WHITE/")
 
-  (copy-abris "/home/k0t3sla/TMP/HOT_DIR/CL237B310_31.jpg"))
+  (copy-abris "/home/k0t3sla/TMP/HOT_DIR/CL237B310_31.jpg")
+  )
