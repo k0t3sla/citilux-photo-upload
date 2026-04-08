@@ -301,7 +301,7 @@
                    (= length 126)
                    (let [buf (byte-array 2)]
                      (loop [read 0]
-                       (if (< read 2)
+                       (when (< read 2)
                          (let [n (.read input buf read (- 2 read))]
                            (if (= n -1)
                              (throw (java.io.EOFException. "Connection closed"))
@@ -310,7 +310,7 @@
                    (= length 127)
                    (let [buf (byte-array 8)]
                      (loop [read 0]
-                       (if (< read 8)
+                       (when (< read 8)
                          (let [n (.read input buf read (- 8 read))]
                            (if (= n -1)
                              (throw (java.io.EOFException. "Connection closed"))
@@ -321,7 +321,7 @@
           mask-key (when masked?
                      (let [mask (byte-array 4)]
                        (loop [read 0]
-                         (if (< read 4)
+                         (when (< read 4)
                            (let [n (.read input mask read (- 4 read))]
                              (if (= n -1)
                                (throw (java.io.EOFException. "Connection closed"))
@@ -329,7 +329,7 @@
                        mask))
           payload (byte-array length)]
       (loop [read 0]
-        (if (< read length)
+        (when (< read length)
           (let [n (.read input payload read (- length read))]
             (if (= n -1)
               (throw (java.io.EOFException. "Connection closed"))
@@ -463,8 +463,8 @@
         dec-iv (sub-byte-array dec-prekey-and-iv prekey-len)
         dec-key (sha256 (concat-byte-arrays dec-prekey secret))
         cipher (create-aes-ctr-cipher dec-key dec-iv)
-        decrypted (cipher-update handshake cipher)]
-    (let [proto-tag (sub-byte-array decrypted proto-tag-pos 4)]
+        decrypted (cipher-update handshake cipher)
+        proto-tag (sub-byte-array decrypted proto-tag-pos 4)] 
       (when (or (bytes= proto-tag proto-tag-abridged)
                 (bytes= proto-tag proto-tag-intermediate)
                 (bytes= proto-tag proto-tag-secure))
@@ -474,7 +474,7 @@
           {:dc-id dc-id
            :is-media is-media
            :proto-tag proto-tag
-           :dec-prekey-iv dec-prekey-and-iv})))))
+           :dec-prekey-iv dec-prekey-and-iv}))))
 
 (defn generate-relay-init
   "Generate relay initialization handshake."
