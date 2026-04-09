@@ -6,37 +6,35 @@
             [clojure.java.shell :as sh]
             [clojure.walk :as walk]
             [mikera.image.core :as img]
-            [clojure.string :as str]
-            [citilux-photo-upload.tg-ws-proxy :as tg-ws-proxy])
+            [clojure.string :as str])
   (:import [java.time Instant])
   (:gen-class))
 
 (defonce messages-queue (atom []))
 
 (defonce ^:private sender-running? (atom false))
-(defonce ^:private ws-conn (atom nil))
 
 (defn- now-iso [] (str (Instant/now)))
 
-(defn- ensure-ws-conn! []
-  (or @ws-conn
-      (let [dc-id (or (:tg-dc-id env) 2)
-            conn (tg-ws-proxy/connect-ws dc-id)]
-        (reset! ws-conn conn)
-        conn)))
-
 (defn- try-send-telegram! [text]
   (try
-    (let [conn (ensure-ws-conn!)
-          ;; tg_ws_proxy работает с бинарными данными, отправляем UTF-8 payload.
-          _ (tg-ws-proxy/send-msg conn text)]
-      {:ok true})
+    (let [url (:send-tg-msg-url env)]
+      (if (str/blank? url)
+        {:ok false :error "config error: :send-tg-msg-url is empty"}
+        (let [resp (client/post url
+                                {:body (generate-string {:message text})
+                                 :headers {"authorization-token" (:token-site env)
+                                           "Content-Type" "application/json"
+                                           "Accept" "application/json"}
+                                 :as :json
+                                 :coerce :always
+                                 :socket-timeout 10000
+                                 :conn-timeout 10000
+                                 :throw-exceptions false})]
+          (if (<= 200 (:status resp) 299)
+            {:ok true}
+            {:ok false :error (str "status=" (:status resp) " body=" (:body resp))}))))
     (catch Exception e
-      (when-let [conn @ws-conn]
-        (try
-          (tg-ws-proxy/disconnect conn)
-          (catch Exception _ nil)))
-      (reset! ws-conn nil)
       {:ok false :error (.getMessage e)})))
 
 (defn- update-message-by-id [queue id f]
