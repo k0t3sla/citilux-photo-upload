@@ -350,10 +350,11 @@
       (when (not-empty (:3d files))
         (set-progress-stage! "3d")
         (doseq [file (:3d files)]
-          (log-file-progress! "3d" (fs/file-name file) "move/upload")
+          (log-file-progress! "3d" (fs/file-name file) "copy/upload")
           (let [out-path (str (:out-path env) (create-path-with-root file "04_SKU_3D_FOR_DESIGNERS/"))]
-            (when-not (fs/exists? out-path) (fs/create-dirs out-path))
-            (fs/move file out-path {:replace-existing true :atomic-move true})
+            (fs/create-dirs out-path)
+            (fs/copy file out-path {:replace-existing true})
+            (fs/delete-if-exists file)
             (upload-3d (get-article file))))
         (add-to-message-log! (notify-msg-create {:files (:3d files) :heading "В папку 04_SKU_3D_FOR_DESIGNERS/\n"})))
 
