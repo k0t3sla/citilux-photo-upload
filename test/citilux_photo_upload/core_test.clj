@@ -2,6 +2,7 @@
   (:require [cheshire.core :as json]
             [citilux-photo-upload.core :refer :all]
             [citilux-photo-upload.proxy :as proxy]
+            [citilux-photo-upload.upload :refer [upload-fotos]]
             [citilux-photo-upload.utils :refer :all]
             [clojure.string :as str]
             [clojure.test :refer :all]
