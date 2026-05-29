@@ -308,16 +308,27 @@
                         :reason-phrase))
     (send-message! "Ошибка отправки в 1с")))
 
+(defn- dim-within? [actual expected]
+  (and (integer? actual) (integer? expected)
+       (<= (Math/abs (- (long actual) (long expected))) 1)))
+
+(def ^:private valid-dimensions
+  [[2000 2000] [2000 2667] [2500 2500]])
+
+(defn- img-dim [img dim-fn]
+  (try
+    (dim-fn img)
+    (catch Exception _ nil)))
+
 (defn check-dimm [^String path]
   (let [img (img/load-image path)
-        ^int w (try
-                 (img/width img)
-                 (catch Exception e (.getMessage e)))
-        ^int h (try
-                 (img/height img)
-                 (catch Exception e (.getMessage e)))]
-    (or (and (= w 2000) (or (= h 2000) (= h 2667)))
-        false)))
+        w (img-dim img img/width)
+        h (img-dim img img/height)]
+    (boolean
+     (when (and (integer? w) (integer? h))
+       (some (fn [[tw th]]
+               (and (dim-within? w tw) (dim-within? h th)))
+             valid-dimensions)))))
 
 (defn count-files-with-extension [file-list]
   (->> file-list

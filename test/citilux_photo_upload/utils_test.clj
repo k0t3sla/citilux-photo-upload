@@ -393,11 +393,34 @@
       (is (str/includes? result "Test Header") "Should include heading in message")))  )
 
 ;; ==================== check-dimm tests ===========================
-(defn- mock-img [w h]
-  (reify clojure.lang.IDeref
-    (deref [_] {:width w :height h})))
+(defn- with-mocked-img [w h f]
+  (redef-privately 'mikera.image.core/load-image (fn [_] :mock-img))
+  (redef-privately 'mikera.image.core/width (fn [_] w))
+  (redef-privately 'mikera.image.core/height (fn [_] h))
+  (f))
 
+(deftest test-check-dimm-valid-dimensions
+  (testing "Accepts valid dimensions with ±1 px tolerance"
+    (doseq [[w h] [[2000 2000] [1999 2001] [2000 2667] [2001 2666] [2500 2500] [2499 2501]]]
+      (with-mocked-img w h
+        #(is (check-dimm "/fake.jpg") (str "Should accept " w "x" h))))))
 
+(deftest test-check-dimm-invalid-dimensions
+  (testing "Rejects invalid dimensions"
+    (doseq [[w h] [[2000 2669] [2500 2502] [1920 1080]]]
+      (with-mocked-img w h
+        #(is (not (check-dimm "/fake.jpg")) (str "Should reject " w "x" h))))))
+
+(deftest test-check-dimm-dimension-read-failure
+  (testing "Returns false when width or height cannot be read"
+    (redef-privately 'mikera.image.core/load-image (fn [_] :mock-img))
+    (redef-privately 'mikera.image.core/width (fn [_] (throw (Exception. "bad width"))))
+    (redef-privately 'mikera.image.core/height (fn [_] 2000))
+    (is (not (check-dimm "/fake.jpg")))
+
+    (redef-privately 'mikera.image.core/width (fn [_] 2000))
+    (redef-privately 'mikera.image.core/height (fn [_] (throw (Exception. "bad height"))))
+    (is (not (check-dimm "/fake.jpg")))))
 
 ;; ==================== count-files-with-extension tests ===========================
 (deftest test-count-files-with-extension
