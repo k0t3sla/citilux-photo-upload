@@ -1,9 +1,38 @@
 (ns citilux-photo-upload.utils-test
-  (:require [clojure.test :refer :all]
-            [clojure.string :as str]
-            [babashka.fs :as fs]
+  (:require [babashka.fs :as fs]
             [citilux-photo-upload.utils :refer :all]
-            [mitheo.redefining-private :refer (redef-privately)]))
+            [clojure.string :as str]
+            [clojure.test :refer :all]
+            [config.core :refer [env]]))
+
+(def ^:private var-roots-stack (atom {}))
+
+(defn- resolve-test-var [sym]
+  (or (find-var sym)
+      (when-let [ns (namespace sym)]
+        (ns-resolve (symbol ns) (symbol (name sym))))))
+
+(defn redef-privately
+  "Replaces a var root for tests (works with private vars and referred vars like env).
+   Roots are restored after each test via use-fixtures below."
+  [sym value]
+  (let [v (resolve-test-var sym)]
+    (when (nil? v)
+      (throw (IllegalArgumentException. (str "Var not found: " sym))))
+    (swap! var-roots-stack update v (fnil conj []) (var-get v))
+    (alter-var-root v (constantly value))))
+
+(defn- restore-var-roots! []
+  (doseq [[v olds] @var-roots-stack
+          :let [old (peek olds)]]
+    (alter-var-root v (constantly old)))
+  (reset! var-roots-stack {}))
+
+(use-fixtures :each (fn [f]
+                      (try
+                        (f)
+                        (finally
+                          (restore-var-roots!)))))
 
 (defn mock-file
   "Helper to create mock file path string"
@@ -72,6 +101,33 @@
     (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/output/"})
     (is (.startsWith (create-path (mock-file "IN123_31.jpg"))
                      "/tmp/output/40_INLUX/"))))
+
+(deftest test-create-path-skytek-brand
+  (testing "Creates path for SKYTEK brand for CLP prefix"
+    (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/output/"})
+    (is (.startsWith (create-path (mock-file "CLP123_31.jpg"))
+                     "/tmp/output/30_SKYTEK/"))))
+
+(deftest test-create-path-p-prefix-skytek
+  (testing "Creates path for SKYTEK brand for P-prefix articles (e.g. P10R0)"
+    (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/output/"})
+    (is (.startsWith (create-path (mock-file "P10R0_01.png"))
+                     "/tmp/output/30_SKYTEK/"))
+    (let [internal (create-path-with-root (mock-file "P10R0_01.png") "04_SKU_INTERNAL_1_1/")]
+      (is (.startsWith internal "30_SKYTEK/04_SKU_INTERNAL_1_1/")))))
+
+(deftest test-brand-for-article-from-map
+  (testing "Uses 1C brand map when prefix is ambiguous"
+    (reset! all-articles-with-brands {:P10R0 "Skytek"})
+    (is (= "30_SKYTEK" (brand-for-article "P10R0")))
+    (reset! all-articles-with-brands {:XYZ999 "Citilux"})
+    (is (= "20_CITILUX" (brand-for-article "XYZ999")))))
+
+(deftest test-create-path-throws-without-brand
+  (testing "create-path-with-root throws when brand is unknown"
+    (reset! all-articles-with-brands {})
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (create-path-with-root (mock-file "UNKNOWN_01.jpg") "04_SKU_INTERNAL_1_1/")))))
 
 (deftest test-create-path-accessories-brand
   (testing "Creates path for ACCESSORIES brand for numeric prefix"
@@ -175,6 +231,12 @@
     (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/output/"})
     (let [path (create-path-with-root (mock-file "IN123_31.jpg") "04_SKU")]
       (is (.contains path "40_INLUX/") "Should contain Inlux brand")))  )
+
+(deftest test-create-path-with-root-skytek
+  (testing "Handles SKYTEK brand correctly for CLP prefix"
+    (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/output/"})
+    (let [path (create-path-with-root (mock-file "CLP123_31.jpg") "04_SKU")]
+      (is (.contains path "30_SKYTEK/") "Should contain Skytek brand")))  )
 
 ;; ==================== filter-files-ext tests ===========================
 (deftest test-filter-files-ext-matching
@@ -333,7 +395,7 @@
 ;; ==================== check-dimm tests ===========================
 (defn- mock-img [w h]
   (reify clojure.lang.IDeref
-    (-deref [_] {:width w :height h})))
+    (deref [_] {:width w :height h})))
 
 
 
@@ -444,7 +506,7 @@
       (create-dir-if-not-exist test-path)
       (is (fs/exists? test-path))
       (if (fs/exists? test-path)
-        (fs/delete-path test-path)  ))  ))
+        (fs/delete-tree test-path)  ))  ))
 
 (deftest test-create-dir-if-not-exists-exists
   (testing "Does not error when directory already exists"
@@ -453,7 +515,7 @@
       (create-dir-if-not-exist test-path) ; Should not throw
       (is (fs/exists? test-path))
       (if (fs/exists? test-path)
-        (fs/delete-path test-path)  ))  )  )
+        (fs/delete-tree test-path)  ))  )  )
 
 (deftest test-create-dir-if-not-exists-subdirectories
   (testing "Creates nested directories"
@@ -461,26 +523,40 @@
       (create-dir-if-not-exist test-path)
       (is (fs/exists? test-path))
       (if (fs/exists? test-path)
-        (fs/delete-path test-path)  ))  ))
+        (fs/delete-tree test-path)  ))  ))
 
 ;; ==================== parse-resp tests ===========================
-(deftest test-parse-resp-simple
-  (testing "Parses simple response correctly"
-    (let [resp ["{" :a "," :b "," :c "]"]
-          result (parse-resp resp)]
-      (is (= ["b"] result)))  ))
+(deftest test-parse-resp-json-array
+  (testing "Parses JSON array of article codes"
+    (let [result (parse-resp "[\"CL1\",\"CL2\"]")]
+      (is (= ["CL1" "CL2"] result)))))
 
-(deftest test-parse-resp-multiple-entries
-  (testing "Parses multiple entries separated by \",\""
-    (let [resp ["{" :a "," :b "," :c "," :d "]"]
-          result (parse-resp resp)]
-      (is (= ["b" "c" "d"] (vec result)))  ))  )
+(deftest test-parse-resp-json-object
+  (testing "Parses JSON object of article to brand"
+    (let [result (parse-resp "{\"CL1\":\"Citilux\",\"CL2\":\"Eletto\"}")]
+      (is (= {:CL1 "Citilux" :CL2 "Eletto"} result)))))
 
-(deftest test-parse-resp-empty
-  (testing "Handles empty response correctly"
-    (let [resp ["{", "}"]
-          result (parse-resp resp)]
-      (is (empty? result)))  ))
+(deftest test-parse-resp-empty-array
+  (testing "Handles empty JSON array"
+    (is (empty? (parse-resp "[]")))))
+
+(deftest test-merged-articles-map
+  (testing "Merges API articles map with additional articles"
+    (redef-privately 'citilux-photo-upload.utils/get-all-articles
+                     (fn [] {:CL1 "Citilux" :CL2 "Citilux"}))
+    (let [codes (convert-map-to-vector-of-articles (merged-articles-map))]
+      (is (contains? (set codes) "CL1"))
+      (is (contains? (set codes) "CL108823")))))
+
+(deftest test-articles-response-to-map-from-vector
+  (testing "Normalizes JSON array response to map before merge"
+    (let [m (#'citilux-photo-upload.utils/articles-response->map ["CL1" "BOX_skip"])]
+      (is (= {:CL1 nil} m)))))
+
+(deftest test-convert-map-to-vector-after-merge
+  (testing "convert-map-to-vector-of-articles works on merged map, not vector"
+    (let [merged (merge {:CL1 "Citilux"} {:CL2 "Eletto"})]
+      (is (= ["CL1" "CL2"] (sort (convert-map-to-vector-of-articles merged)))))))
 
 ;; ==================== Integration and boundary tests ===========================
 (deftest test-all-brand-categories-tested
@@ -516,6 +592,8 @@
 
 (deftest test-send-message-enqueues
   (testing "send-message! adds message to queue with :pending status"
+    (redef-privately 'citilux-photo-upload.utils/env (assoc env :debug false))
+    (reset! messages-queue [])
     (let [result (send-message! "test-from-utils")]
       (is (= :pending (:status result)))
       (is (= "test-from-utils" (:text result)))
@@ -553,5 +631,5 @@
 (deftest test-move-file-basic
   (testing "move-file function creates correct path structure"
     (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/"})
-    (let [path (create-path-with-root (mock-file "test.jpg") "04_SKU")]
-      (is (.contains path "/tmp/20_CITILUX/") "Path has correct structure")))  )
+    (let [path (create-path-with-root (mock-file "CL123_31.jpg") "04_SKU")]
+      (is (.startsWith path "20_CITILUX/04_SKU") "Path has correct structure")))  )

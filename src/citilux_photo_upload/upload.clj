@@ -8,6 +8,9 @@
             [citilux-photo-upload.utils :refer [create-path-with-root send-message!]])
   (:gen-class))
 
+(defn- server-upload-enabled? []
+  (not (:debug env)))
+
 (defn encode64 [path]
   (.encodeToString
    (java.util.Base64/getEncoder)
@@ -17,7 +20,8 @@
 (defn upload-fotos
   "Грузим фото на сервер в base64"
   [art]
-  (let [files (sort (mapv str (fs/glob (str (:out-path env) (create-path-with-root art "04_SKU_INTERNAL_1_1/")) "**{.jpeg,jpg,png}")))
+  (when (server-upload-enabled?)
+    (let [files (sort (mapv str (fs/glob (str (:out-path env) (create-path-with-root art "04_SKU_INTERNAL_1_1/")) "**{.jpeg,jpg,png}")))
         
         _ (println "files" files)
         
@@ -37,35 +41,39 @@
                              :conn-timeout 300000})
                (catch Exception e (send-message! (str "Ошибка при загрузке фото из WEB+1C на сервер: " (.getMessage e)))))]
     (when (not= (:status resp) 200)
-      (send-message! (str "проблемы при загрузке фотографий - " art " status = " (:status resp))))))
+      (send-message! (str "проблемы при загрузке фотографий - " art " status = " (:status resp)))))))
 
 (defn get-last-modified-file [directory pattern]
-  (->> (fs/glob directory pattern)
-       (sort-by fs/last-modified-time)
-       last
-       str))
+  (when-let [f (->> (fs/glob directory pattern)
+                    (sort-by fs/last-modified-time)
+                    last)]
+    (str f)))
 
 (defn upload-3d
   "Грузим 3d на сервер в base64"
   [art]
-  (let [directory (str (:out-path env) (create-path-with-root art "04_SKU_3D_FOR_DESIGNERS/"))
-        pattern "**{.zip}"
-        last-modified-file (get-last-modified-file directory pattern)
-        file (when last-modified-file
-                      (encode64 last-modified-file))
-        data {:art art
-              :file-name (fs/file-name last-modified-file)
-              :file-3d file} 
-        resp (try
-               (client/post (:url-3d env)
-                            {:headers {"Authorization-Token" (:token-site env)}
-                             :body (ch/generate-string data)
-                             :insecure true
-                             :content-type :json
-                             :conn-timeout 300000})
-               (catch Exception e (send-message! (str "Ошибка при загрузке архива 3D на сервер: " (.getMessage e)))))]
-    (when (not= (:status resp) 200)
-      (send-message! (str "проблемы при загрузке архива 3D - " art " status = " (:status resp))))))
+  (when (server-upload-enabled?)
+    (let [directory (str (:out-path env) (create-path-with-root art "04_SKU_3D_FOR_DESIGNERS/"))
+          pattern "**{.zip}"
+          last-modified-file (get-last-modified-file directory pattern)]
+      (if-not last-modified-file
+        (do (println (str "upload-3d: zip не найден для " art " в " directory))
+            (send-message! (str "Архив 3D не найден для артикула " art))
+            nil)
+        (let [data {:art art
+                    :file-name (fs/file-name last-modified-file)
+                    :file-3d (encode64 last-modified-file)}
+              resp (try
+                     (client/post (:url-3d env)
+                                  {:headers {"Authorization-Token" (:token-site env)}
+                                   :body (ch/generate-string data)
+                                   :insecure true
+                                   :content-type :json
+                                   :conn-timeout 300000})
+                     (catch Exception e
+                       (send-message! (str "Ошибка при загрузке архива 3D на сервер: " (.getMessage e)))))]
+          (when (and resp (not= (:status resp) 200))
+            (send-message! (str "проблемы при загрузке архива 3D - " art " status = " (:status resp)))))))))
 
 (defn logExtracted [data]
   (let [all-items   (concat (:instructions data) (:assembly data))
@@ -78,7 +86,8 @@
   "Загружаем инструкции и схемы сборки на сервер.
    Возвращает map с ключами :success и :errors из ответа сервера, или nil при ошибке."
   [instructions assembly]
-  (when (or (seq instructions) (seq assembly)) ; выполняем только если есть данные
+  (when (and (server-upload-enabled?)
+             (or (seq instructions) (seq assembly))) ; выполняем только если есть данные
     (let [encode-file (fn [path]
                         (encode64 path))
           

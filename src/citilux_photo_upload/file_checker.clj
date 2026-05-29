@@ -5,9 +5,10 @@
             [config.core :refer [env]]
             [babashka.fs :as fs]
             [citilux-photo-upload.utils :refer [get-article create-path create-path-with-root 
-                                                all-articles get-all-articles]]))
+                                                all-articles merged-articles-map
+                                                convert-map-to-vector-of-articles]]))
 
-(def articles (set (get-all-articles)))
+(def articles (set (convert-map-to-vector-of-articles (merged-articles-map))))
 
 (defn valid-article? [article]
   (contains? (set @all-articles) article))

@@ -1,7 +1,7 @@
 (ns citilux-photo-upload.utils
   (:require [babashka.fs :as fs]
             [clj-http.client :as client]
-            [cheshire.core :refer [generate-string]]
+            [cheshire.core :refer [generate-string parse-string]]
             [config.core :refer [env]]
             [clojure.java.shell :as sh]
             [clojure.walk :as walk]
@@ -55,39 +55,80 @@
       (Thread/sleep (if (seq pending) 10000 5000)))
     (recur)))
 
+(defn debug? []
+  (true? (:debug env)))
+
 (defn start-message-sender! []
-  (when (compare-and-set! sender-running? false true)
-    (future
-      (try
-        (process-pending-messages!)
-        (catch Exception e
-          (println "Message sender crashed:" (.getMessage e))
-          (reset! sender-running? false))))))
+  (when-not (debug?)
+    (when (compare-and-set! sender-running? false true)
+      (future
+        (try
+          (process-pending-messages!)
+          (catch Exception e
+            (println "Message sender crashed:" (.getMessage e))
+            (reset! sender-running? false)))))))
 
 (defn send-message! [text]
-  (let [msg {:id (str (random-uuid))
-             :text text
-             :status :pending
-             :created-at (now-iso)
-             :sent-at nil
-             :attempts 0
-             :last-error nil}]
-    (swap! messages-queue conj msg)
-    (start-message-sender!)
-    msg))
+  (if (debug?)
+    (do (println "[debug] send-message!:" text)
+        {:status :debug-skipped :text text})
+    (let [msg {:id (str (random-uuid))
+               :text text
+               :status :pending
+               :created-at (now-iso)
+               :sent-at nil
+               :attempts 0
+               :last-error nil}]
+      (swap! messages-queue conj msg)
+      (start-message-sender!)
+      msg)))
 
 (comment
   (send-message! "test"))
 
 (defn parse-resp [resp]
-  (str/split (apply str (->> resp
-                             (drop 4)
-                             (drop-last 4))) #"\\\",\\\""))
+  (->> resp
+       parse-string
+       walk/keywordize-keys))
 
 (defn get-article
   "Get the article code before the first underscore"
   [file]
   (first (str/split (fs/file-name file) #"_")))
+
+(def all-articles-with-brands (atom {}))
+
+(def ^:private brand-folder-by-api-name
+  {"citilux"     "20_CITILUX"
+   "eletto"      "50_ELETTO"
+   "inlux"       "40_INLUX"
+   "skytek"      "30_SKYTEK"
+   "accessories" "10_ACCESSORIES"})
+
+(defn- brand-from-articles-map [art]
+  (when-let [brand-name (get @all-articles-with-brands (keyword art))]
+    (get brand-folder-by-api-name (str/lower-case (str brand-name)))))
+
+(defn- brand-from-article-prefix [art]
+  (let [len (count art)]
+    (cond
+      (and (>= len 3) (= (subs art 0 3) "CLP")) "30_SKYTEK"
+      (and (>= len 1) (= (subs art 0 1) "P")) "30_SKYTEK"
+      (and (>= len 2) (= (subs art 0 2) "CL")) "20_CITILUX"
+      (and (>= len 2) (= (subs art 0 2) "EL")) "50_ELETTO"
+      (and (>= len 2) (= (subs art 0 2) "IN")) "40_INLUX"
+      (and (>= len 2) (re-matches #"\d{2}.*" (subs art 0 2))) "10_ACCESSORIES")))
+
+(defn brand-for-article
+  "Папка бренда для артикула: сначала карта из 1С, иначе по префиксу."
+  [art]
+  (or (brand-from-articles-map art)
+      (brand-from-article-prefix art)))
+
+(defn- require-brand! [art]
+  (or (brand-for-article art)
+      (throw (ex-info (str "Не удалось определить бренд для артикула: " art)
+                      {:article art}))))
 
 (defn create-path
   "Создание пути для сохранения, первые 3, 5 или весь артикул"
@@ -102,12 +143,7 @@
          all (when (str/includes? file-name "_ALL_") true)
          art (get-article file-name)
          art-len (count art)
-         first-2 (subs art 0 2)
-         brand (cond
-                 (= first-2 "CL") "20_CITILUX"
-                 (= first-2 "EL") "50_ELETTO"
-                 (= first-2 "IN") "40_INLUX"
-                 (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
+         brand (require-brand! art)
          out-path (str
                    (:out-path env)
                    brand '/
@@ -122,12 +158,7 @@
   ([file-path dir-to-save]
    (let [art (get-article (fs/file-name file-path))
          art-len (count art)
-         first-2 (subs art 0 2)
-         brand (cond
-                 (= first-2 "CL") "20_CITILUX"
-                 (= first-2 "EL") "50_ELETTO"
-                 (= first-2 "IN") "40_INLUX"
-                 (re-matches #"\d{2}.*" first-2) "10_ACCESSORIES")
+         brand (require-brand! art)
          out-path (str brand '/
                        dir-to-save
                        (subs art 0 (min 3 art-len)) '/
@@ -200,44 +231,74 @@
     (when-not (str/blank? msg)
       msg)))
 
-(defn get-all-articles []
-  (let [resp (-> (client/post (str (:root-1c-endpoint env) (:get-all-articles-url env))
-                              {:headers {"Authorization" (:token-1c env)}})
-                 :body
-                 parse-resp)]
-    (filterv (complement #(or
-                           (str/includes? % "_DRV")
-                           (str/includes? % "МЛК")
-                           (str/includes? % "ТЕСТ")
-                           (str/includes? % "pult")
-                           (str/includes? % "_(GroupPack)")
-                           (str/starts-with? % "BOX_"))) resp)))
+(defn- excluded-article? [art]
+  (or (str/includes? art "_DRV")
+      (str/includes? art "МЛК")
+      (str/includes? art "ТЕСТ")
+      (str/includes? art "pult")
+      (str/includes? art "_(GroupPack)")
+      (str/starts-with? art "BOX_")))
 
-(def additional-articles ["CL108823"
-                          "CL136131"
-                          "CL138141"
-                          "CL138161"
-                          "CL138181"
-                          "CL140313"
-                          "CL143181"
-                          "CL143311"
-                          "CL145131"
-                          "CL145132"
-                          "CL145312"
-                          "CL146182"
-                          "CL146311"
-                          "CL148141"
-                          "CL149311"
-                          "CL149321"
-                          "CL150141"
-                          "CL154151"
-                          "CL159312"
-                          "CL160263"])
+(defn- articles-response->map [resp]
+  (cond
+    (map? resp) resp
+    (sequential? resp)
+    (into {}
+          (for [art resp
+                :let [art-name (if (keyword? art) (name art) (str art))]
+                :when (not (excluded-article? art-name))]
+            [(keyword art-name) nil]))
+    :else {}))
+
+(defn- filter-articles-map [m]
+  (into {} (remove (fn [[k _]] (excluded-article? (name k))) m)))
+
+(defn get-all-articles []
+  (-> (client/post (str (:root-1c-endpoint env) (:get-all-articles-url env))
+                   {:headers {"Authorization" (:token-1c env)}})
+      :body
+      parse-resp
+      articles-response->map
+      filter-articles-map))
+
+(def additional-articles {:CL108823 "Citilux"
+                          :CL136131 "Citilux"
+                          :CL138141 "Citilux"
+                          :CL138161 "Citilux"
+                          :CL138181 "Citilux"
+                          :CL140313 "Citilux"
+                          :CL143181 "Citilux"
+                          :CL143311 "Citilux"
+                          :CL145131 "Citilux"
+                          :CL145132 "Citilux"
+                          :CL145312 "Citilux"
+                          :CL146182 "Citilux"
+                          :CL146311 "Citilux"
+                          :CL148141 "Citilux"
+                          :CL149311 "Citilux"
+                          :CL149321 "Citilux"
+                          :CL150141 "Citilux"
+                          :CL154151 "Citilux"
+                          :CL159312 "Citilux"
+                          :CL160263 "Citilux"})
+
+(defn convert-map-to-vector-of-articles [m]
+  (mapv (fn [[k _]] (if (keyword? k) (name k) k)) (walk/stringify-keys m)))
+
+(defn merged-articles-map []
+  (merge (get-all-articles) additional-articles))
 
 (def all-articles (atom []))
+
 (defn update-articles! []
   (println "updating articles")
-  (reset! all-articles (concat (get-all-articles) additional-articles)))
+  (let [articles (merged-articles-map)]
+    (reset! all-articles (convert-map-to-vector-of-articles articles))
+    (reset! all-articles-with-brands articles)))
+
+(comment
+  (update-articles!)
+  )
 
 (defn report-imgs-1c! [arts]
   (when-not (= "OK" (-> (client/post (str (:root-1c-endpoint env) (:imgs-report-1c env))
@@ -334,7 +395,7 @@
 
 (defn create-dirs-ctructure []
 
-  (let [all-articles (get-all-articles)
+  (let [all-articles (convert-map-to-vector-of-articles (merged-articles-map))
         check-prod (fn [art] (if (re-matches #"\d{3}" (subs art 0 3))
                                false
                                true))

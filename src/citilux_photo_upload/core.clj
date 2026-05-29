@@ -381,16 +381,17 @@
         (do
           (set-progress-stage! "upload-to-server")
           (doseq [art (:to-upload files)]
-            (log-file-progress! "upload-to-server" art "upload")
+            (log-file-progress! "upload-to-server" art (if (:debug env) "skip (debug)" "upload"))
             (try
-              (when-not (:debug env)
-                (upload-fotos art))
-              (println (str "upload " art " to server"))
+              (upload-fotos art)
+              (println (if (:debug env)
+                         (str "[debug] пропуск загрузки на сервер: " art)
+                         (str "upload " art " to server")))
               (catch Exception e
                 (append-progress! (str "warn [upload-fotos]: " art " -> " (.getMessage e)))
                 (run-safe! "send-message upload-fotos exception"
                            #(send-message! (str "upload on server caught exception: " (.getMessage e)))))))
-          (when (not-empty (:to-upload files))
+          (when (and (not-empty (:to-upload files)) (not (:debug env)))
             (run-safe! "notify upload complete" #(notify! {:files (:to-upload files)}))))
         (run-safe! "send-message no-new-photos" #(send-message! "Новые фотографии отсутствуют")))
 
@@ -934,10 +935,14 @@ document.addEventListener('click', function (e) {
            [:head (hiccup/include-css "styles.css")]
            [:main {:class "container mx-auto grid grid-cols-2 gap-4"}
             (when (> (count correct) 0)
+              (when (:debug env)
+                (println "[debug] ручная загрузка на сервер отключена"))
               (doseq [art correct]
                 (upload-fotos art))
               [:div {:class "flex flex-col items-center pt-10"}
-               [:p "Фото по этим артикулам отправлены на сервер"]
+               [:p (if (:debug env)
+                     "Режим debug: загрузка на сервер отключена"
+                     "Фото по этим артикулам отправлены на сервер")]
                [:ul (for [art correct]
                       [:li art])]])
             (when (> (count err) 0)

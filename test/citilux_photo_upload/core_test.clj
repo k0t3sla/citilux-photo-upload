@@ -1,9 +1,11 @@
 (ns citilux-photo-upload.core-test
-  (:require [clojure.test :refer :all]
-            [cheshire.core :as json]
+  (:require [cheshire.core :as json]
             [citilux-photo-upload.core :refer :all]
             [citilux-photo-upload.proxy :as proxy]
-            [citilux-photo-upload.utils :refer :all]))
+            [citilux-photo-upload.utils :refer :all]
+            [clojure.string :as str]
+            [clojure.test :refer :all]
+            [config.core :refer [env]]))
 
 (deftest test-move-and-compress
   (testing "move-and-compress with invalid path"
@@ -32,6 +34,30 @@
       (is (= true (:running resp)))
       (is (= "test" (:stage resp)))
       (is (vector? (:entries resp))))))
+
+(deftest upload-to-server-debug-message-test
+  (testing "Manual upload page shows debug notice when :debug is true"
+    (let [saved-env env]
+      (try
+        (alter-var-root #'env assoc :debug true)
+        (with-redefs [filter-files (fn [{:keys [filter-errors?]}]
+                                     (if filter-errors? [] ["CL123"]))]
+          (let [html (upload-to-server {:params {:arts "CL123"}})]
+            (is (str/includes? html "Режим debug: загрузка на сервер отключена"))
+            (is (not (str/includes? html "отправлены на сервер")))))
+        (finally (alter-var-root #'env (constantly saved-env)))))))
+
+(deftest upload-to-server-production-message-test
+  (testing "Manual upload page shows success message when :debug is false"
+    (let [saved-env env]
+      (try
+        (alter-var-root #'env assoc :debug false)
+        (with-redefs [filter-files (fn [{:keys [filter-errors?]}]
+                                     (if filter-errors? [] ["CL123"]))
+                     upload-fotos (fn [_] nil)]
+          (let [html (upload-to-server {:params {:arts "CL123"}})]
+            (is (str/includes? html "Фото по этим артикулам отправлены на сервер"))))
+        (finally (alter-var-root #'env (constantly saved-env)))))))
 
 (deftest hotdir-handler-guard-test
   (testing "Second hotdir run is guarded when blocked"
