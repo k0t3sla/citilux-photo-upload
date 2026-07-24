@@ -94,12 +94,14 @@
 (defn abris-file-exists? [path]
   (let [article (get-article (fs/file-name path))
         file-name (get-file-name-without-extension path)
-        abris-dir (fs/path (:out-path env)
-                           (create-path-with-root article "01_PRODUCTION_FILES/01_ABRIS/"))
-        png-path (fs/path abris-dir (str file-name ".png"))
-        jpg-path (fs/path abris-dir (str file-name ".jpg"))]
-    (or (fs/exists? png-path)
-        (fs/exists? jpg-path))))
+        rel (create-path-with-root article "01_PRODUCTION_FILES/01_ABRIS/")]
+    (if-not rel
+      false
+      (let [abris-dir (fs/path (:out-path env) rel)
+            png-path (fs/path abris-dir (str file-name ".png"))
+            jpg-path (fs/path abris-dir (str file-name ".jpg"))]
+        (or (fs/exists? png-path)
+            (fs/exists? jpg-path))))))
 
 (defn check-abris? [file-name]
   (and (s/valid? ::abris file-name)

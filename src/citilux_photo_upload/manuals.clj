@@ -3,7 +3,7 @@
    [babashka.fs :as fs]
    [citilux-photo-upload.upload :refer [upload-manuals]]
    [citilux-photo-upload.utils :refer [all-articles create-path-with-root
-                                       exist?]]
+                                       brand-for-article exist?]]
    [clojure.string :as str]
    [config.core :refer [env]]
    [hiccup.page :as hiccup]))
@@ -48,11 +48,14 @@
   "Копируем файлы на файловую систему
    :out-path - потом бренд 01_PRODUCTION_FILES\\03_MANUAL"
   [art path-to-file path-to-save]
-  (let [out-path (str (:out-path env) (create-path-with-root art path-to-save) (fs/file-name path-to-file))
-        parent-dir (fs/parent out-path)]
-    (println "copying manuals" art path-to-file out-path)
-    (fs/create-dirs parent-dir)  ; Создаём все необходимые директории
-    (fs/copy path-to-file out-path {:replace-existing true})))
+  (let [rel (create-path-with-root art path-to-save)]
+    (if-not rel
+      (println (str "skip copy-manuals: неизвестный бренд для " art))
+      (let [out-path (str (:out-path env) rel (fs/file-name path-to-file))
+            parent-dir (fs/parent out-path)]
+        (println "copying manuals" art path-to-file out-path)
+        (fs/create-dirs parent-dir)
+        (fs/copy path-to-file out-path {:replace-existing true})))))
 
 
 (defn convert-path [windows-path]
@@ -66,14 +69,16 @@
 (defn validate-manual-entry [{:keys [article path]}]
   (let [linux-path (convert-path path)
         article-exists? (exist? article @all-articles)
+        brand-known? (some? (brand-for-article article))
         path-converted? (some? linux-path)
         file-exists? (and path-converted? (fs/exists? linux-path))]
     {:article article
      :original-path path
      :path (or linux-path path)
-     :valid? (and article-exists? file-exists? path-converted?)
+     :valid? (and article-exists? brand-known? file-exists? path-converted?)
      :errors (cond-> []
                (not article-exists?) (conj "Артикул не существует")
+               (not brand-known?) (conj "Не удалось определить бренд")
                (not path-converted?) (conj "Некорректный формат пути")
                (and path-converted? (not file-exists?)) (conj "Файл не найден"))}))
 

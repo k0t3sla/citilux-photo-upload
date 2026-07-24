@@ -36,6 +36,7 @@
                                                 check-dimm
                                                 copy-abris
                                                 get-article
+                                                known-brand?
                                                 split-articles
                                                 move-and-compress
                                                 notify-msg-create
@@ -184,30 +185,60 @@
       correct-arts)))
 
 
+(defn- with-known-brand [files]
+  (filterv known-brand? files))
+
 (defn get-files []
   (let [hotdir-files       (hotdir-files)
         hotdir-files-wb    (hotdir-files-wb)
-        abris              (filterv check-abris? hotdir-files)
-        white              (filterv white? hotdir-files)
-        white-wb           (filterv white? hotdir-files-wb)
-        files-3d           (filterv valid-3d? hotdir-files)
-        regular-hot-dir    (vec (remove #(contains? (set (concat abris white)) %) (filterv valid-regular-file-name? hotdir-files)))
-        all-valid-wb       (vec (remove #(contains? (set white-wb) %) (filterv valid-regular-file-name? hotdir-files-wb)))
-        SMM                (filterv valid-file-name-SMM? hotdir-files)
-        BANNERS            (filterv valid-file-name-BANNERS? hotdir-files)
-        WEBBANNERS         (filterv valid-file-name-WEBBANNERS? hotdir-files)
-        NEWS               (filterv valid-file-name-NEWS? hotdir-files)
-        MAIL               (filterv valid-file-name-MAIL? hotdir-files)
-        SMM_ALL            (filterv valid-file-name-SMM_ALL? hotdir-files)
-        NEWS_ALL           (filterv valid-file-name-NEWS_ALL? hotdir-files)
-        BANNERS_ALL        (filterv valid-file-name-BANNERS_ALL? hotdir-files)
-        WEBBANNERS_ALL     (filterv valid-file-name-WEBBANNERS_ALL? hotdir-files)
-        MAIL_ALL           (filterv valid-file-name-MAIL_ALL? hotdir-files)
+        abris-raw          (filterv check-abris? hotdir-files)
+        white-raw          (filterv white? hotdir-files)
+        white-wb-raw       (filterv white? hotdir-files-wb)
+        files-3d-raw       (filterv valid-3d? hotdir-files)
+        regular-raw        (vec (remove #(contains? (set (concat abris-raw white-raw)) %)
+                                        (filterv valid-regular-file-name? hotdir-files)))
+        all-valid-wb-raw   (vec (remove #(contains? (set white-wb-raw) %)
+                                        (filterv valid-regular-file-name? hotdir-files-wb)))
+        SMM-raw            (filterv valid-file-name-SMM? hotdir-files)
+        BANNERS-raw        (filterv valid-file-name-BANNERS? hotdir-files)
+        WEBBANNERS-raw     (filterv valid-file-name-WEBBANNERS? hotdir-files)
+        NEWS-raw           (filterv valid-file-name-NEWS? hotdir-files)
+        MAIL-raw           (filterv valid-file-name-MAIL? hotdir-files)
+        SMM_ALL-raw        (filterv valid-file-name-SMM_ALL? hotdir-files)
+        NEWS_ALL-raw       (filterv valid-file-name-NEWS_ALL? hotdir-files)
+        BANNERS_ALL-raw    (filterv valid-file-name-BANNERS_ALL? hotdir-files)
+        WEBBANNERS_ALL-raw (filterv valid-file-name-WEBBANNERS_ALL? hotdir-files)
+        MAIL_ALL-raw       (filterv valid-file-name-MAIL_ALL? hotdir-files)
+        all-valid-raw (concat regular-raw SMM-raw BANNERS-raw WEBBANNERS-raw NEWS-raw MAIL-raw
+                              SMM_ALL-raw files-3d-raw BANNERS_ALL-raw NEWS_ALL-raw
+                              WEBBANNERS_ALL-raw MAIL_ALL-raw abris-raw white-raw)
+        unknown-brand (vec (distinct (concat (filterv (complement known-brand?) all-valid-raw)
+                                             (filterv (complement known-brand?) all-valid-wb-raw)
+                                             (filterv (complement known-brand?) white-wb-raw))))
+        abris              (with-known-brand abris-raw)
+        white              (with-known-brand white-raw)
+        white-wb           (with-known-brand white-wb-raw)
+        files-3d           (with-known-brand files-3d-raw)
+        regular-hot-dir    (with-known-brand regular-raw)
+        all-valid-wb       (with-known-brand all-valid-wb-raw)
+        SMM                (with-known-brand SMM-raw)
+        BANNERS            (with-known-brand BANNERS-raw)
+        WEBBANNERS         (with-known-brand WEBBANNERS-raw)
+        NEWS               (with-known-brand NEWS-raw)
+        MAIL               (with-known-brand MAIL-raw)
+        SMM_ALL            (with-known-brand SMM_ALL-raw)
+        NEWS_ALL           (with-known-brand NEWS_ALL-raw)
+        BANNERS_ALL        (with-known-brand BANNERS_ALL-raw)
+        WEBBANNERS_ALL     (with-known-brand WEBBANNERS_ALL-raw)
+        MAIL_ALL           (with-known-brand MAIL_ALL-raw)
         to-upload          (set (mapv get-article (filter valid-regular-file-name? regular-hot-dir)))
         all-valid (concat regular-hot-dir SMM BANNERS WEBBANNERS NEWS MAIL SMM_ALL files-3d
                           BANNERS_ALL NEWS_ALL WEBBANNERS_ALL MAIL_ALL abris white)]
-    {:err-files (vec (remove #(contains? (set all-valid) %) hotdir-files))
-     :err-files-wb (vec (remove #(contains? (set all-valid-wb) %) hotdir-files-wb))
+    {:err-files (vec (remove #(contains? (set all-valid-raw) %) hotdir-files))
+     :err-files-wb (vec (remove #(or (contains? (set all-valid-wb-raw) %)
+                                     (contains? (set white-wb-raw) %))
+                                hotdir-files-wb))
+     :unknown-brand unknown-brand
      :to-upload to-upload
      :smm SMM
      :banners BANNERS
@@ -371,6 +402,12 @@
       (when (not-empty (:err-files files))
         (run-safe! "send-message err-files"
                    #(send-message! (str "ошибки в названиях фото" (mapv fs/file-name (:err-files files))))))
+
+      (when (not-empty (:unknown-brand files))
+        (run-safe! "send-message unknown-brand"
+                   #(send-message!
+                     (str "пропущены файлы без бренда: "
+                          (mapv fs/file-name (:unknown-brand files))))))
 
       (when (not-empty @message-log)
         (run-safe! "send-message summary"
@@ -1130,7 +1167,6 @@ document.addEventListener('click', function (e) {
   (send-files!)
   (start-server)
   (stop-server)
-
 
   (copy-abris (first (:abris (get-files))))
 

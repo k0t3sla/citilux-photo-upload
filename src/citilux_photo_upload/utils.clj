@@ -125,13 +125,14 @@
   (or (brand-from-articles-map art)
       (brand-from-article-prefix art)))
 
-(defn- require-brand! [art]
-  (or (brand-for-article art)
-      (throw (ex-info (str "Не удалось определить бренд для артикула: " art)
-                      {:article art}))))
+(defn known-brand?
+  "True, если для артикула (или имени файла) можно определить бренд."
+  [file-or-art]
+  (some? (brand-for-article (get-article (fs/file-name file-or-art)))))
 
 (defn create-path
-  "Создание пути для сохранения, первые 3, 5 или весь артикул"
+  "Создание пути для сохранения, первые 3, 5 или весь артикул.
+   Возвращает nil, если бренд не определён."
   ([file-path]
    (let [file-name (fs/file-name file-path)
          adv (cond
@@ -143,51 +144,56 @@
          all (when (str/includes? file-name "_ALL_") true)
          art (get-article file-name)
          art-len (count art)
-         brand (require-brand! art)
-         out-path (str
-                   (:out-path env)
-                   brand '/
-                   (when adv adv)
-                   (subs art 0 (min 3 art-len)) '/
-                   (subs art 0 (min 5 art-len)) '/
-                   (when-not all (str art '/)))]
-     out-path)))
+         brand (brand-for-article art)]
+     (when brand
+       (str
+        (:out-path env)
+        brand '/
+        (when adv adv)
+        (subs art 0 (min 3 art-len)) '/
+        (subs art 0 (min 5 art-len)) '/
+        (when-not all (str art '/)))))))
 
 (defn create-path-with-root
-  "Создание пути для сохранения, первые 3, 5 или весь артикул"
+  "Создание пути для сохранения, первые 3, 5 или весь артикул.
+   Возвращает nil, если бренд не определён."
   ([file-path dir-to-save]
    (let [art (get-article (fs/file-name file-path))
          art-len (count art)
-         brand (require-brand! art)
-         out-path (str brand '/
-                       dir-to-save
-                       (subs art 0 (min 3 art-len)) '/
-                       (subs art 0 (min 5 art-len)) '/
-                       art '/)]
-     out-path)))
+         brand (brand-for-article art)]
+     (when brand
+       (str brand '/
+            dir-to-save
+            (subs art 0 (min 3 art-len)) '/
+            (subs art 0 (min 5 art-len)) '/
+            art '/)))))
 
 (defn move-and-compress [file dir-to-save]
-  (let [mozjpeg-bin "./cjpeg-static"
-        tmp-path (str "tmp" '/ (first (fs/split-ext (fs/file-name file))) ".jpg")
-        _ (sh/sh mozjpeg-bin "-quality" (:quality env) "-outfile" tmp-path file)
-        orig-size (fs/size file)
-        zipped-size (fs/size tmp-path)
-        ratio (float (/ zipped-size orig-size))
-        path (str (:out-path env) (create-path-with-root file dir-to-save))]
-    (println ratio)
-    (if (< ratio 0.9)
-      (do
-        (fs/create-dirs path)
-        (println "comprassing and moving")
-        (println path)
-        (fs/copy tmp-path path {:replace-existing true}))
-      (do
-        (fs/create-dirs path)
-        (println "just moving")
-        (println path)
-        (fs/copy file path {:replace-existing true})))
-    (fs/delete-if-exists file)
-    (fs/delete-if-exists tmp-path)))
+  (let [rel-path (create-path-with-root file dir-to-save)]
+    (if-not rel-path
+      (println (str "skip move-and-compress: неизвестный бренд для "
+                    (get-article (fs/file-name file))))
+      (let [mozjpeg-bin "./cjpeg-static"
+            tmp-path (str "tmp" '/ (first (fs/split-ext (fs/file-name file))) ".jpg")
+            _ (sh/sh mozjpeg-bin "-quality" (:quality env) "-outfile" tmp-path file)
+            orig-size (fs/size file)
+            zipped-size (fs/size tmp-path)
+            ratio (float (/ zipped-size orig-size))
+            path (str (:out-path env) rel-path)]
+        (println ratio)
+        (if (< ratio 0.9)
+          (do
+            (fs/create-dirs path)
+            (println "comprassing and moving")
+            (println path)
+            (fs/copy tmp-path path {:replace-existing true}))
+          (do
+            (fs/create-dirs path)
+            (println "just moving")
+            (println path)
+            (fs/copy file path {:replace-existing true})))
+        (fs/delete-if-exists file)
+        (fs/delete-if-exists tmp-path)))))
 
 (defn filter-files-ext [files ext]
   (filter (fn [x]
@@ -359,29 +365,34 @@
   (let [file-name (fs/file-name file)
         art (get-article file-name)
         path-to-input (str (:hot-dir env) file-name)
-        path-todir (str (:out-path env) (create-path-with-root path-to-input "04_SKU_INTERNAL_1_1/"))
-        path-todir-source (str (:out-path env) (create-path-with-root path-to-input "03_SOURCE_1_1/"))
-        path-todir-abris (str (:out-path env) (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/"))
-        _ (fs/create-dirs path-todir)
-        _ (fs/create-dirs path-todir-abris)
-        _ (fs/create-dirs path-todir-source)
-        _ (println "path-todir " path-todir)
-        _ (println "path-todir-abris " path-todir-abris)
-        _ (println "path-todir-source " path-todir-source)
-        out-internal (str path-todir file-name)
-        out-source (str path-todir-source file-name)
-        out-abris (str path-todir-abris file-name)]
-    (if (fs/exists? out-internal)
-      (do
-        (println "file exist")
-        (fs/copy file out-source {:replace-existing true})
-        (println "copied" file "to" out-source)
-        (move-and-compress file "04_SKU_INTERNAL_1_1/"))
-      (do
-        (println "file not  exist")
-        (fs/copy file out-internal {:replace-existing true})
-        (fs/copy file out-abris {:replace-existing false})))
-    (fs/delete-if-exists file)))
+        rel-internal (create-path-with-root path-to-input "04_SKU_INTERNAL_1_1/")
+        rel-source (create-path-with-root path-to-input "03_SOURCE_1_1/")
+        rel-abris (create-path-with-root art "01_PRODUCTION_FILES/01_ABRIS/")]
+    (if-not (and rel-internal rel-source rel-abris)
+      (println (str "skip copy-abris: неизвестный бренд для " art))
+      (let [path-todir (str (:out-path env) rel-internal)
+            path-todir-source (str (:out-path env) rel-source)
+            path-todir-abris (str (:out-path env) rel-abris)
+            _ (fs/create-dirs path-todir)
+            _ (fs/create-dirs path-todir-abris)
+            _ (fs/create-dirs path-todir-source)
+            _ (println "path-todir " path-todir)
+            _ (println "path-todir-abris " path-todir-abris)
+            _ (println "path-todir-source " path-todir-source)
+            out-internal (str path-todir file-name)
+            out-source (str path-todir-source file-name)
+            out-abris (str path-todir-abris file-name)]
+        (if (fs/exists? out-internal)
+          (do
+            (println "file exist")
+            (fs/copy file out-source {:replace-existing true})
+            (println "copied" file "to" out-source)
+            (move-and-compress file "04_SKU_INTERNAL_1_1/"))
+          (do
+            (println "file not  exist")
+            (fs/copy file out-internal {:replace-existing true})
+            (fs/copy file out-abris {:replace-existing false})))
+        (fs/delete-if-exists file)))))
 
 (comment
   (copy-abris "/home/li/TEMP/HOT_DIR/CL237B310_31.jpg"))
@@ -390,10 +401,14 @@
   "on input filepath"
   [^String file]
   (let [file-name (fs/file-name file)
-        path (str (create-path file) file-name)]
-    (fs/create-dirs (create-path file-name))
-    (fs/copy file path {:replace-existing true})
-    (fs/delete-if-exists file)))
+        dir (create-path file)]
+    (if-not dir
+      (println (str "skip move-file: неизвестный бренд для "
+                    (get-article file-name)))
+      (let [path (str dir file-name)]
+        (fs/create-dirs dir)
+        (fs/copy file path {:replace-existing true})
+        (fs/delete-if-exists file)))))
 
 (defn split-articles [^String s]
   (filter #(not (str/blank? %)) (str/split s #",|\n|\t")))

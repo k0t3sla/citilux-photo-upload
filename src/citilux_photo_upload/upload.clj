@@ -21,27 +21,30 @@
   "Грузим фото на сервер в base64"
   [art]
   (when (server-upload-enabled?)
-    (let [files (sort (mapv str (fs/glob (str (:out-path env) (create-path-with-root art "04_SKU_INTERNAL_1_1/")) "**{.jpeg,jpg,png}")))
-        
-        _ (println "files" files)
-        
-        detail-foto (when (> (count files) 0)
-                      (encode64 (first files)))
-        encoded-fotos (when (> (count files) 1) ;; остальные фото исключая детальную
-                        (mapv encode64 (drop 1 files)))
-        data {:art art
-              :detail detail-foto
-              :photos encoded-fotos}
-        resp (try
-               (client/post (:url env)
-                            {:headers {"Authorization-Token" (:token-site env)}
-                             :body (ch/generate-string data)
-                             :insecure true
-                             :content-type :json
-                             :conn-timeout 300000})
-               (catch Exception e (send-message! (str "Ошибка при загрузке фото из WEB+1C на сервер: " (.getMessage e)))))]
-    (when (not= (:status resp) 200)
-      (send-message! (str "проблемы при загрузке фотографий - " art " status = " (:status resp)))))))
+    (let [rel (create-path-with-root art "04_SKU_INTERNAL_1_1/")]
+      (if-not rel
+        (println (str "skip upload-fotos: неизвестный бренд для " art))
+        (let [files (sort (mapv str (fs/glob (str (:out-path env) rel) "**{.jpeg,jpg,png}")))
+
+              _ (println "files" files)
+
+              detail-foto (when (> (count files) 0)
+                            (encode64 (first files)))
+              encoded-fotos (when (> (count files) 1) ;; остальные фото исключая детальную
+                              (mapv encode64 (drop 1 files)))
+              data {:art art
+                    :detail detail-foto
+                    :photos encoded-fotos}
+              resp (try
+                     (client/post (:url env)
+                                  {:headers {"Authorization-Token" (:token-site env)}
+                                   :body (ch/generate-string data)
+                                   :insecure true
+                                   :content-type :json
+                                   :conn-timeout 300000})
+                     (catch Exception e (send-message! (str "Ошибка при загрузке фото из WEB+1C на сервер: " (.getMessage e)))))]
+          (when (not= (:status resp) 200)
+            (send-message! (str "проблемы при загрузке фотографий - " art " status = " (:status resp)))))))))
 
 (defn get-last-modified-file [directory pattern]
   (when-let [f (->> (fs/glob directory pattern)
@@ -53,27 +56,30 @@
   "Грузим 3d на сервер в base64"
   [art]
   (when (server-upload-enabled?)
-    (let [directory (str (:out-path env) (create-path-with-root art "04_SKU_3D_FOR_DESIGNERS/"))
-          pattern "**{.zip}"
-          last-modified-file (get-last-modified-file directory pattern)]
-      (if-not last-modified-file
-        (do (println (str "upload-3d: zip не найден для " art " в " directory))
-            (send-message! (str "Архив 3D не найден для артикула " art))
-            nil)
-        (let [data {:art art
-                    :file-name (fs/file-name last-modified-file)
-                    :file-3d (encode64 last-modified-file)}
-              resp (try
-                     (client/post (:url-3d env)
-                                  {:headers {"Authorization-Token" (:token-site env)}
-                                   :body (ch/generate-string data)
-                                   :insecure true
-                                   :content-type :json
-                                   :conn-timeout 300000})
-                     (catch Exception e
-                       (send-message! (str "Ошибка при загрузке архива 3D на сервер: " (.getMessage e)))))]
-          (when (and resp (not= (:status resp) 200))
-            (send-message! (str "проблемы при загрузке архива 3D - " art " status = " (:status resp)))))))))
+    (let [rel (create-path-with-root art "04_SKU_3D_FOR_DESIGNERS/")]
+      (if-not rel
+        (println (str "skip upload-3d: неизвестный бренд для " art))
+        (let [directory (str (:out-path env) rel)
+              pattern "**{.zip}"
+              last-modified-file (get-last-modified-file directory pattern)]
+          (if-not last-modified-file
+            (do (println (str "upload-3d: zip не найден для " art " в " directory))
+                (send-message! (str "Архив 3D не найден для артикула " art))
+                nil)
+            (let [data {:art art
+                        :file-name (fs/file-name last-modified-file)
+                        :file-3d (encode64 last-modified-file)}
+                  resp (try
+                         (client/post (:url-3d env)
+                                      {:headers {"Authorization-Token" (:token-site env)}
+                                       :body (ch/generate-string data)
+                                       :insecure true
+                                       :content-type :json
+                                       :conn-timeout 300000})
+                         (catch Exception e
+                           (send-message! (str "Ошибка при загрузке архива 3D на сервер: " (.getMessage e)))))]
+              (when (and resp (not= (:status resp) 200))
+                (send-message! (str "проблемы при загрузке архива 3D - " art " status = " (:status resp)))))))))))
 
 (defn logExtracted [data]
   (let [all-items   (concat (:instructions data) (:assembly data))

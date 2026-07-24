@@ -123,11 +123,14 @@
     (reset! all-articles-with-brands {:XYZ999 "Citilux"})
     (is (= "20_CITILUX" (brand-for-article "XYZ999")))))
 
-(deftest test-create-path-throws-without-brand
-  (testing "create-path-with-root throws when brand is unknown"
+(deftest test-create-path-nil-without-brand
+  (testing "create-path and create-path-with-root return nil when brand is unknown"
     (reset! all-articles-with-brands {})
-    (is (thrown? clojure.lang.ExceptionInfo
-                 (create-path-with-root (mock-file "UNKNOWN_01.jpg") "04_SKU_INTERNAL_1_1/")))))
+    (is (nil? (brand-for-article "UNKNOWN")))
+    (is (nil? (create-path-with-root (mock-file "UNKNOWN_01.jpg") "04_SKU_INTERNAL_1_1/")))
+    (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/output/"})
+    (is (nil? (create-path (mock-file "UNKNOWN_01.jpg"))))
+    (is (false? (known-brand? (mock-file "UNKNOWN_01.jpg"))))))
 
 (deftest test-create-path-accessories-brand
   (testing "Creates path for ACCESSORIES brand for numeric prefix"
