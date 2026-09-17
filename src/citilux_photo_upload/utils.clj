@@ -91,10 +91,65 @@
        parse-string
        walk/keywordize-keys))
 
+(declare all-articles)
+
+(def ^:private known-file-suffixes
+  "Suffixes stripped from filenames when resolving article (longest first)."
+  ["_SMM_ALL" "_NEWS_ALL" "_BANNERS_ALL" "_WEBBANNERS_ALL" "_MAIL_ALL"
+   "_WEBBANNERS" "_BANNERS" "_SMM" "_NEWS" "_MAIL" "_ALL" "_3d" "_3D"])
+
+(defn- has-file-extension?
+  "True if the basename looks like a filename with an extension."
+  [name]
+  (boolean (re-find #"\.[A-Za-z0-9]+$" name)))
+
+(defn- strip-known-suffixes
+  "Remove trailing photo number and known type suffixes from basename."
+  [base]
+  (let [without-num (str/replace base #"_\d+$" "")
+        stripped (reduce (fn [s suffix]
+                           (if (str/ends-with? s suffix)
+                             (subs s 0 (- (count s) (count suffix)))
+                             s))
+                         without-num
+                         known-file-suffixes)]
+    stripped))
+
+(defn- longest-article-match
+  "Longest article from catalog that equals base or is a prefix followed by _."
+  [base articles]
+  (->> articles
+       (filter (fn [art]
+                 (or (= base art)
+                     (str/starts-with? base (str art "_")))))
+       (sort-by count >)
+       first))
+
 (defn get-article
-  "Get the article code before the first underscore"
+  "Extract article code from a filename or bare article string.
+
+  Handles articles with underscores (e.g. CL51511V_BD_01.png → CL51511V_BD):
+  1. Bare article (no file extension) is returned as-is
+  2. Longest match against @all-articles
+  3. Strip trailing _NN and known type suffixes (_SMM, _3d, …)
+  4. Fallback: segment before the first underscore"
   [file]
-  (first (str/split (fs/file-name file) #"_")))
+  (let [name (fs/file-name file)
+        base (fs/strip-ext name)]
+    (cond
+      ;; Dotfile that is only an extension (e.g. ".jpg")
+      (re-matches #"\.[^.]+" name)
+      ""
+
+      (not (has-file-extension? name))
+      name
+
+      :else
+      (or (longest-article-match base @all-articles)
+          (let [stripped (strip-known-suffixes base)]
+            (when (and (seq stripped) (not= stripped base))
+              stripped))
+          (first (str/split base #"_"))))))
 
 (def all-articles-with-brands (atom {}))
 

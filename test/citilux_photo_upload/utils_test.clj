@@ -64,11 +64,11 @@
 
 ;; ==================== get-article tests ====================
 (deftest test-get-article-simple
-  (testing "Extracts article code before first underscore"
+  (testing "Extracts article code by stripping trailing photo number"
     (is (= "CL123456" (get-article (mock-file "CL123456_31.jpg"))))))
 
 (deftest test-get-article-with-many-underscores
-  (testing "Gets only the part before the first underscore with multiple underscores"
+  (testing "Falls back to segment before first underscore for unknown middle parts"
     (is (= "EL789012" (get-article (mock-file "EL789012_extra_fields_here.pdf"))))))
 
 (deftest test-get-article-no-underscore
@@ -76,12 +76,35 @@
     (is (= "CL999999" (get-article (mock-file "CL999999.jpg"))))))
 
 (deftest test-get-article-single-char-prefix
-  (testing "Handles single character article code"
-    (is (= "C" (get-article (mock-file "C123_456.jpg"))))))
+  (testing "Strips trailing number, keeps rest of article"
+    (is (= "C123" (get-article (mock-file "C123_456.jpg"))))))
 
 (deftest test-get-article-empty-underscore
   (testing "Returns empty string when file starts with underscore"
     (is (= "" (get-article (mock-file "_31.jpg"))))))
+
+(deftest test-get-article-with-underscore-in-code
+  (testing "Keeps underscores inside article code (CL51511V_BD_01.png)"
+    (is (= "CL51511V_BD" (get-article (mock-file "CL51511V_BD_01.png"))))))
+
+(deftest test-get-article-bare-article-with-underscore
+  (testing "Bare article with underscore is returned as-is"
+    (is (= "CL51511V_BD" (get-article "CL51511V_BD")))))
+
+(deftest test-get-article-smm-with-underscore
+  (testing "Strips _SMM and photo number from underscore article"
+    (is (= "CL51511V_BD" (get-article (mock-file "CL51511V_BD_SMM_01.jpg"))))))
+
+(deftest test-get-article-3d-with-underscore
+  (testing "Strips _3d and photo number from underscore article"
+    (is (= "CL51511V_BD" (get-article (mock-file "CL51511V_BD_3d_01.zip"))))))
+
+(deftest test-get-article-longest-match-from-catalog
+  (testing "Prefers longest matching article from catalog when both prefixes exist"
+    (reset! all-articles ["CL51511V" "CL51511V_BD"])
+    (is (= "CL51511V_BD" (get-article (mock-file "CL51511V_BD_01.png"))))
+    (is (= "CL51511V" (get-article (mock-file "CL51511V_01.png"))))
+    (reset! all-articles [])))
 
 ;; ==================== create-path tests ====================
 (deftest test-create-path-citilux-3-digit-article
@@ -193,10 +216,11 @@
       (is (str/includes? path "CL/") "Path should work with short article code")))  )
 
 (deftest test-create-path-multiple-underscores
-  (testing "Handles multiple underscores in filename"
+  (testing "Handles article with underscores in code"
     (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/output/"})
-    (let [path (create-path (mock-file "CL123__test_31.jpg"))]
-      (is (str/includes? path "CL123/") "Should handle multiple underscores")))  )
+    (let [path (create-path (mock-file "CL51511V_BD_01.png"))]
+      (is (str/includes? path "CL51511V_BD/") "Path should contain full underscore article")
+      (is (not (str/includes? path "CL51511V/CL51511V/")) "Path should not truncate at first underscore"))))
 
 (deftest test-create-path-numeric-article-accessories
   (testing "Numeric article codes get accessories brand"
@@ -240,6 +264,23 @@
     (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/output/"})
     (let [path (create-path-with-root (mock-file "CLP123_31.jpg") "04_SKU")]
       (is (.contains path "30_SKYTEK/") "Should contain Skytek brand")))  )
+
+(deftest test-create-path-underscore-article
+  (testing "create-path uses full article with underscore"
+    (redef-privately 'citilux-photo-upload.utils/env {:out-path "/tmp/output/"})
+    (let [path (create-path (mock-file "CL51511V_BD_01.png"))]
+      (is (str/includes? path "20_CITILUX/"))
+      (is (str/includes? path "CL5/"))
+      (is (str/includes? path "CL515/"))
+      (is (str/includes? path "CL51511V_BD/"))
+      (is (not (re-find #"CL51511V/" path))))))
+
+(deftest test-create-path-with-root-underscore-article
+  (testing "create-path-with-root keeps underscore article from filename and bare art"
+    (let [from-file (create-path-with-root (mock-file "CL51511V_BD_01.png") "04_SKU_INTERNAL_1_1/")
+          from-bare (create-path-with-root "CL51511V_BD" "04_SKU_INTERNAL_1_1/")]
+      (is (= "20_CITILUX/04_SKU_INTERNAL_1_1/CL5/CL515/CL51511V_BD/" from-file))
+      (is (= from-file from-bare)))))
 
 ;; ==================== filter-files-ext tests ===========================
 (deftest test-filter-files-ext-matching
@@ -338,6 +379,24 @@
                                  (mock-file "EL456_B.jpg")]
                                 "" nil false)]
       (is true "Processed multiple articles")))  )
+
+(deftest test-process-files-underscore-article
+  (testing "Messages include full article with underscores"
+    (let [result (process-files [(mock-file "CL51511V_BD_01.png")
+                                 (mock-file "CL51511V_BD_02.png")]
+                                "png" "Загружены фото\n" false)]
+      (is (str/includes? result "CL51511V_BD"))
+      (is (str/includes? result "2 шт"))
+      (is (not (str/includes? result "CL51511V -"))))))
+
+(deftest test-notify-msg-create-underscore-article
+  (testing "notify-msg-create keeps underscore articles in message text"
+    (let [result (notify-msg-create {:files [(mock-file "CL51511V_BD_01.png")]
+                                     :heading "Загружены фото в папку\n"
+                                     :err? false})]
+      (is (str/includes? result "CL51511V_BD"))
+      (is (str/includes? result "Загружены фото в папку"))
+      (is (not (re-find #"CL51511V -" result))))))
 
 ;; ==================== notify! tests ===========================
 (deftest test-notify-with-multiple-types
@@ -494,7 +553,7 @@
 
 (deftest test-exist-underscore-article
   (testing "Handles article codes with underscores"
-    (is (exist? (mock-file "CL_12345_31.jpg") ["CL"]))))
+    (is (exist? (mock-file "CL51511V_BD_01.png") ["CL51511V_BD" "CL123"]))))
 
 ;; ==================== split-articles tests ===========================
 (deftest test-split-articles-comma-separated
